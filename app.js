@@ -1,58 +1,14 @@
-const users = [
-  {
-    id: "U-10001",
-    username: "admin",
-    password: "Admin123!",
-    displayName: "系统管理员",
-    role: "Platform Owner",
-    department: "数字化平台部",
-    email: "admin@example.com",
-    phone: "138-0000-0001",
-    location: "Shanghai",
-    bio: "负责平台配置、账号治理和基础能力巡检，适合演示管理员视角的登录与信息呈现。",
-    accent: "#0f766e",
-  },
-  {
-    id: "U-10002",
-    username: "alice",
-    password: "Alice123!",
-    displayName: "Alice Chen",
-    role: "Operations Analyst",
-    department: "经营分析组",
-    email: "alice.chen@example.com",
-    phone: "138-0000-0002",
-    location: "Hangzhou",
-    bio: "负责经营分析与月度报表复核，用于验证普通业务用户的资料展示和头像修改能力。",
-    accent: "#c96f1f",
-  },
-  {
-    id: "U-10003",
-    username: "bob",
-    password: "Bob123!",
-    displayName: "Bob Wang",
-    role: "Regional Manager",
-    department: "华东区域",
-    email: "bob.wang@example.com",
-    phone: "138-0000-0003",
-    location: "Nanjing",
-    bio: "负责区域运营协同，适合验证多用户切换、会话保持和头像本地持久化效果。",
-    accent: "#8a4b14",
-  },
-];
-
 const storageKeys = {
-  session: "simple-user-system.session",
-  avatars: "simple-user-system.avatars",
-  lastLogins: "simple-user-system.last-logins",
+  session: "ai-exam.session",
 };
 
 const loginPanel = document.getElementById("login-panel");
 const dashboardPanel = document.getElementById("dashboard-panel");
 const loginForm = document.getElementById("login-form");
 const loginMessage = document.getElementById("login-message");
-const avatarInput = document.getElementById("avatar-input");
+const usersGrid = document.getElementById("users-grid");
+const usersCount = document.getElementById("users-count");
 const logoutButton = document.getElementById("logout-button");
-const resetAvatarButton = document.getElementById("reset-avatar-button");
 
 const fields = {
   avatarImage: document.getElementById("avatar-image"),
@@ -71,7 +27,7 @@ function readJson(key, fallback) {
   try {
     const raw = localStorage.getItem(key);
     return raw ? JSON.parse(raw) : fallback;
-  } catch (error) {
+  } catch {
     return fallback;
   }
 }
@@ -80,12 +36,12 @@ function writeJson(key, value) {
   localStorage.setItem(key, JSON.stringify(value));
 }
 
-function getUserByUsername(username) {
-  return users.find((user) => user.username === username);
+function clearSession() {
+  localStorage.removeItem(storageKeys.session);
 }
 
 function buildDefaultAvatar(user) {
-  const initials = user.displayName
+  const initials = String(user.displayName || user.username || "?")
     .split(" ")
     .map((part) => part.trim()[0])
     .filter(Boolean)
@@ -93,11 +49,12 @@ function buildDefaultAvatar(user) {
     .join("")
     .toUpperCase();
 
+  const accent = user.accent || "#0f766e";
   const svg = `
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 320" role="img" aria-label="${user.displayName}">
       <defs>
         <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stop-color="${user.accent}" />
+          <stop offset="0%" stop-color="${accent}" />
           <stop offset="100%" stop-color="#f1d3aa" />
         </linearGradient>
       </defs>
@@ -122,59 +79,6 @@ function buildDefaultAvatar(user) {
   return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
 }
 
-function getAvatarMap() {
-  return readJson(storageKeys.avatars, {});
-}
-
-function getLastLoginMap() {
-  return readJson(storageKeys.lastLogins, {});
-}
-
-function formatLocalDate(date) {
-  return new Intl.DateTimeFormat("zh-CN", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(date);
-}
-
-function persistSession(user) {
-  writeJson(storageKeys.session, { username: user.username });
-
-  const lastLogins = getLastLoginMap();
-  lastLogins[user.username] = formatLocalDate(new Date());
-  writeJson(storageKeys.lastLogins, lastLogins);
-}
-
-function clearSession() {
-  localStorage.removeItem(storageKeys.session);
-}
-
-function resolveAvatar(user) {
-  const avatarMap = getAvatarMap();
-  return avatarMap[user.username] || buildDefaultAvatar(user);
-}
-
-function renderUser(user) {
-  loginPanel.classList.add("hidden");
-  dashboardPanel.classList.remove("hidden");
-
-  fields.avatarImage.src = resolveAvatar(user);
-  fields.role.textContent = user.role;
-  fields.displayName.textContent = user.displayName;
-  fields.bio.textContent = user.bio;
-  fields.userId.textContent = user.id;
-  fields.department.textContent = user.department;
-  fields.email.textContent = user.email;
-  fields.phone.textContent = user.phone;
-  fields.location.textContent = user.location;
-  fields.lastLogin.textContent = getLastLoginMap()[user.username] || "首次登录";
-
-  document.body.style.setProperty("--accent", user.accent);
-}
-
 function renderLogin() {
   clearSession();
   dashboardPanel.classList.add("hidden");
@@ -184,95 +88,115 @@ function renderLogin() {
   document.body.style.removeProperty("--accent");
 }
 
-function bootFromSession() {
-  const session = readJson(storageKeys.session, null);
-  if (!session || !session.username) {
-    renderLogin();
-    return;
-  }
+function renderUsers(users, currentUser) {
+  dashboardPanel.classList.remove("hidden");
+  loginPanel.classList.add("hidden");
 
-  const user = getUserByUsername(session.username);
-  if (!user) {
-    renderLogin();
-    return;
-  }
+  fields.avatarImage.src = buildDefaultAvatar(currentUser);
+  fields.role.textContent = currentUser.role;
+  fields.displayName.textContent = currentUser.displayName;
+  fields.bio.textContent = currentUser.bio;
+  fields.userId.textContent = currentUser.id;
+  fields.department.textContent = currentUser.department;
+  fields.email.textContent = currentUser.email;
+  fields.phone.textContent = currentUser.phone;
+  fields.location.textContent = currentUser.location;
+  fields.lastLogin.textContent = "登录成功";
+  usersCount.textContent = `${users.length} 位用户`;
+  document.body.style.setProperty("--accent", currentUser.accent || "#0f766e");
 
-  renderUser(user);
+  usersGrid.innerHTML = users
+    .map(
+      (user) => `
+        <article class="user-card ${user.username === currentUser.username ? "active" : ""}" data-username="${user.username}">
+          <div class="user-card-avatar" style="--user-accent:${user.accent || "#0f766e"}">${String(
+            user.displayName || user.username
+          )
+            .split(" ")
+            .map((part) => part.trim()[0])
+            .filter(Boolean)
+            .slice(0, 2)
+            .join("")
+            .toUpperCase()}</div>
+          <div class="user-card-body">
+            <h4>${user.displayName}</h4>
+            <p>${user.role}</p>
+            <span>${user.department}</span>
+          </div>
+        </article>
+      `
+    )
+    .join("");
 }
 
-loginForm.addEventListener("submit", (event) => {
+async function fetchJson(url, options = {}) {
+  const response = await fetch(url, {
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...(options.headers || {}),
+    },
+  });
+
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(payload.error || "Request failed");
+  }
+
+  return payload;
+}
+
+async function loadSession() {
+  const session = readJson(storageKeys.session, null);
+  if (!session?.token) {
+    renderLogin();
+    return;
+  }
+
+  try {
+    const payload = await fetchJson("/api/users", {
+      headers: {
+        Authorization: `Bearer ${session.token}`,
+      },
+    });
+
+    writeJson(storageKeys.session, {
+      token: session.token,
+      user: payload.currentUser,
+    });
+    renderUsers(payload.users, payload.currentUser);
+  } catch (error) {
+    renderLogin();
+    loginMessage.textContent = error.message || "请重新登录";
+  }
+}
+
+loginForm.addEventListener("submit", async (event) => {
   event.preventDefault();
+  loginMessage.textContent = "";
 
   const formData = new FormData(loginForm);
   const username = String(formData.get("username") || "").trim();
   const password = String(formData.get("password") || "");
-  const user = getUserByUsername(username);
 
-  if (!user || user.password !== password) {
-    loginMessage.textContent = "用户名或密码错误，请使用页面左侧提供的演示账号。";
+  if (!username || !password) {
+    loginMessage.textContent = "请输入用户名和密码";
     return;
   }
 
-  loginMessage.textContent = "";
-  persistSession(user);
-  renderUser(user);
-});
+  try {
+    const payload = await fetchJson("/api/login", {
+      method: "POST",
+      body: JSON.stringify({ username, password }),
+    });
 
-logoutButton.addEventListener("click", () => {
-  renderLogin();
-});
-
-resetAvatarButton.addEventListener("click", () => {
-  const session = readJson(storageKeys.session, null);
-  if (!session?.username) {
-    return;
-  }
-
-  const avatarMap = getAvatarMap();
-  delete avatarMap[session.username];
-  writeJson(storageKeys.avatars, avatarMap);
-
-  const user = getUserByUsername(session.username);
-  if (user) {
-    renderUser(user);
+    writeJson(storageKeys.session, payload);
+    await loadSession();
+  } catch (error) {
+    loginMessage.textContent = error.message || "登录失败";
   }
 });
 
-avatarInput.addEventListener("change", () => {
-  const file = avatarInput.files?.[0];
-  const session = readJson(storageKeys.session, null);
+logoutButton.addEventListener("click", renderLogin);
 
-  if (!file || !session?.username) {
-    return;
-  }
-
-  if (!file.type.startsWith("image/")) {
-    loginMessage.textContent = "请选择图片文件作为头像。";
-    avatarInput.value = "";
-    return;
-  }
-
-  if (file.size > 1.5 * 1024 * 1024) {
-    loginMessage.textContent = "头像文件请控制在 1.5MB 以内。";
-    avatarInput.value = "";
-    return;
-  }
-
-  const reader = new FileReader();
-  reader.onload = () => {
-    const avatarMap = getAvatarMap();
-    avatarMap[session.username] = String(reader.result);
-    writeJson(storageKeys.avatars, avatarMap);
-
-    const user = getUserByUsername(session.username);
-    if (user) {
-      renderUser(user);
-    }
-
-    loginMessage.textContent = "";
-    avatarInput.value = "";
-  };
-  reader.readAsDataURL(file);
-});
-
-bootFromSession();
+loadSession();

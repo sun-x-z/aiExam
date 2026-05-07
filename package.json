@@ -1,0 +1,13 @@
+{
+  "name": "ai-exam-user-list",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Login and user list demo backed by Vercel + Neon",
+  "scripts": {
+    "test": "node smoke-test.js",
+    "smoke": "node smoke-test.js"
+  },
+  "dependencies": {
+    "pg": "^8.13.0"
+  }
+}

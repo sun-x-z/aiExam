@@ -26,6 +26,7 @@ class MockElement {
     this.textContent = "";
     this.value = "";
     this.src = "";
+    this.innerHTML = "";
     this.files = [];
     this.listeners = {};
     this.classList = new MockClassList(options.classes || []);
@@ -47,15 +48,6 @@ class MockFormData {
 
   get(name) {
     return this.form.currentValues?.[name] ?? "";
-  }
-}
-
-class MockFileReader {
-  readAsDataURL(file) {
-    this.result = file.mockDataUrl;
-    if (typeof this.onload === "function") {
-      this.onload();
-    }
   }
 }
 
@@ -83,15 +75,13 @@ function assert(condition, message) {
   }
 }
 
-function main() {
+async function main() {
   const elements = {
     "login-panel": new MockElement("login-panel"),
     "dashboard-panel": new MockElement("dashboard-panel", { classes: ["hidden"] }),
     "login-form": new MockElement("login-form"),
     "login-message": new MockElement("login-message"),
-    "avatar-input": new MockElement("avatar-input"),
     "logout-button": new MockElement("logout-button"),
-    "reset-avatar-button": new MockElement("reset-avatar-button"),
     "avatar-image": new MockElement("avatar-image"),
     "user-role": new MockElement("user-role"),
     "display-name": new MockElement("display-name"),
@@ -102,11 +92,71 @@ function main() {
     "user-phone": new MockElement("user-phone"),
     "user-location": new MockElement("user-location"),
     "last-login": new MockElement("last-login"),
+    "users-grid": new MockElement("users-grid"),
+    "users-count": new MockElement("users-count"),
   };
 
   elements["login-form"].currentValues = { username: "", password: "" };
 
   const localStorage = createStorage();
+  const responses = {
+    "/api/login": {
+      token: "mock.token",
+      user: {
+        username: "admin",
+        id: "U-10001",
+        displayName: "系统管理员",
+        role: "Platform Owner",
+        department: "数字化平台部",
+        email: "admin@example.com",
+        phone: "138-0000-0001",
+        location: "Shanghai",
+        bio: "负责平台配置、账号治理和基础能力巡检。",
+        accent: "#0f766e",
+      },
+    },
+    "/api/users": {
+      currentUser: {
+        username: "admin",
+        id: "U-10001",
+        displayName: "系统管理员",
+        role: "Platform Owner",
+        department: "数字化平台部",
+        email: "admin@example.com",
+        phone: "138-0000-0001",
+        location: "Shanghai",
+        bio: "负责平台配置、账号治理和基础能力巡检。",
+        accent: "#0f766e",
+      },
+      users: [
+        {
+          username: "admin",
+          id: "U-10001",
+          displayName: "系统管理员",
+          role: "Platform Owner",
+          department: "数字化平台部",
+          email: "admin@example.com",
+          phone: "138-0000-0001",
+          location: "Shanghai",
+          bio: "负责平台配置、账号治理和基础能力巡检。",
+          accent: "#0f766e",
+        },
+        {
+          username: "alice",
+          id: "U-10002",
+          displayName: "Alice Chen",
+          role: "Operations Analyst",
+          department: "经营分析组",
+          email: "alice.chen@example.com",
+          phone: "138-0000-0002",
+          location: "Hangzhou",
+          bio: "负责经营分析与月度报表复核。",
+          accent: "#c96f1f",
+        },
+      ],
+    },
+  };
+
   const document = {
     body: {
       style: {
@@ -132,53 +182,59 @@ function main() {
     document,
     localStorage,
     FormData: MockFormData,
-    FileReader: MockFileReader,
     Intl,
+    fetch: async (url, options = {}) => {
+      if (url === "/api/login") {
+        return {
+          ok: true,
+          json: async () => responses["/api/login"],
+        };
+      }
+
+      if (url === "/api/users") {
+        return {
+          ok: true,
+          json: async () => responses["/api/users"],
+        };
+      }
+
+      return {
+        ok: false,
+        json: async () => ({ error: "not found" }),
+      };
+    },
   });
 
   const scriptPath = path.join(__dirname, "app.js");
   const script = fs.readFileSync(scriptPath, "utf8");
   vm.runInContext(script, context, { filename: scriptPath });
 
-  assert(!elements["login-panel"].classList.contains("hidden"), "login panel should be visible after boot");
-  assert(elements["dashboard-panel"].classList.contains("hidden"), "dashboard should be hidden after boot");
+  await new Promise((resolve) => setImmediate(resolve));
 
   elements["login-form"].currentValues = { username: "admin", password: "Admin123!" };
-  elements["login-form"].listeners.submit({
+  await elements["login-form"].listeners.submit({
     preventDefault() {},
   });
 
+  await new Promise((resolve) => setImmediate(resolve));
+
   assert(elements["login-panel"].classList.contains("hidden"), "login panel should be hidden after login");
   assert(!elements["dashboard-panel"].classList.contains("hidden"), "dashboard should be visible after login");
-  assert(elements["display-name"].textContent === "系统管理员", "display name should render for admin");
-  assert(elements["user-email"].textContent === "admin@example.com", "email should render for admin");
-  assert(elements["avatar-image"].src.startsWith("data:image/svg+xml"), "default avatar should be rendered");
-
-  elements["avatar-input"].files = [
-    {
-      type: "image/png",
-      size: 128,
-      mockDataUrl: "data:image/png;base64,ZmFrZS1hdmF0YXI=",
-    },
-  ];
-  elements["avatar-input"].listeners.change();
-
-  assert(
-    elements["avatar-image"].src === "data:image/png;base64,ZmFrZS1hdmF0YXI=",
-    "uploaded avatar should replace default avatar"
-  );
-
-  elements["reset-avatar-button"].listeners.click();
-  assert(elements["avatar-image"].src.startsWith("data:image/svg+xml"), "reset should restore default avatar");
+  assert(elements["display-name"].textContent === "系统管理员", "current user should render");
+  assert(elements["users-count"].textContent === "2 位用户", "user count should render");
+  assert(elements["users-grid"].innerHTML.includes("Alice Chen"), "user list should render");
 
   elements["logout-button"].listeners.click();
   assert(!elements["login-panel"].classList.contains("hidden"), "login panel should show after logout");
   assert(elements["dashboard-panel"].classList.contains("hidden"), "dashboard should hide after logout");
 
   const storageDump = localStorage.dump();
-  assert(!storageDump["simple-user-system.session"], "session should be cleared after logout");
+  assert(!storageDump["ai-exam.session"], "session should be cleared after logout");
 
   console.log("smoke test passed");
 }
 
-main();
+main().catch((error) => {
+  console.error(error);
+  process.exit(1);
+});

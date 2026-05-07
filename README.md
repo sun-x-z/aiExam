@@ -1,53 +1,27 @@
-# Simple User System
+# AI Exam User List
 
-一个可直接部署到 Vercel 的简易静态系统，支持：
+登录后展示用户信息列表，数据来自 Vercel API + Neon PostgreSQL。
 
-- 用户登录
-- 登录后展示对应用户资料
-- 用户头像修改
-- 浏览器本地持久化头像和登录态
+## 配置
 
-## 演示账号
+需要在 Vercel 环境变量中设置：
 
-| 用户名 | 密码 |
-| --- | --- |
-| `admin` | `Admin123!` |
-| `alice` | `Alice123!` |
-| `bob` | `Bob123!` |
+- `DATABASE_URL`
+- `AUTH_SECRET`
 
-## 本地运行
+## 初始化数据库
 
-项目没有构建依赖，直接启动静态服务器即可。
+执行 `database/schema.sql`，创建 `public.user_profiles` 表并插入初始用户。
+
+## 本地验证
 
 ```powershell
-cd C:\Users\sunlixin\Desktop\simple-user-system
-python -m http.server 4173
+npm install
+npm test
 ```
 
-然后访问：
+## 实施阻碍
 
-```text
-http://127.0.0.1:4173
-```
-
-## GitHub 提交
-
-```powershell
-git init
-git add .
-git commit -m "feat: add simple user system"
-git branch -M main
-git remote add origin git@github.com:sunlixin1024/simple-user-system.git
-git push -u origin main
-```
-
-如果仓库还不存在，需要先在 GitHub 创建 `simple-user-system` 仓库，或者安装 `gh` 后通过 CLI 创建。
-
-## Vercel 部署
-
-```powershell
-vercel login
-vercel --prod
-```
-
-这是静态站点，Vercel 会直接识别根目录内容并完成部署。
+- 当前仓库原本只有静态前端，没有后端工程结构，需要补 `api/*`。
+- 需要先在 Neon 创建数据库并配置 `DATABASE_URL`，否则登录和列表接口不可用。
+- 现有页面依赖本地假数据，已迁移为数据库查询，旧的本地头像持久化逻辑已移除。
