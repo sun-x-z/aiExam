@@ -1,76 +1,54 @@
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
-CREATE TABLE IF NOT EXISTS public.user_profiles (
-  id TEXT PRIMARY KEY,
-  username TEXT NOT NULL UNIQUE,
-  password_hash TEXT NOT NULL,
-  display_name TEXT NOT NULL,
-  role TEXT NOT NULL,
-  department TEXT NOT NULL,
-  email TEXT NOT NULL,
-  phone TEXT NOT NULL,
-  location TEXT NOT NULL,
-  bio TEXT NOT NULL,
-  accent TEXT NOT NULL DEFAULT '#0f766e',
-  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+CREATE TABLE IF NOT EXISTS public.template_rules (
+  id BIGSERIAL PRIMARY KEY,
+  fingerprint TEXT NOT NULL UNIQUE,
+  sheet_name TEXT NOT NULL,
+  header_row_index INTEGER NOT NULL,
+  column_mapping JSONB NOT NULL,
+  header_names JSONB NOT NULL,
+  confidence INTEGER NOT NULL DEFAULT 0,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_user_profiles_display_name ON public.user_profiles (display_name);
-CREATE INDEX IF NOT EXISTS idx_user_profiles_username ON public.user_profiles (username);
+CREATE TABLE IF NOT EXISTS public.import_batches (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  file_name TEXT NOT NULL,
+  sheet_name TEXT NOT NULL,
+  template_fingerprint TEXT NOT NULL,
+  total_count INTEGER NOT NULL DEFAULT 0,
+  success_count INTEGER NOT NULL DEFAULT 0,
+  failure_count INTEGER NOT NULL DEFAULT 0,
+  status TEXT NOT NULL DEFAULT 'draft',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
 
-INSERT INTO public.user_profiles (
-  id,
-  username,
-  password_hash,
-  display_name,
-  role,
-  department,
-  email,
-  phone,
-  location,
-  bio,
-  accent
-)
-VALUES
-  (
-    'U-10001',
-    'admin',
-    crypt('Admin123!', gen_salt('bf')),
-    '系统管理员',
-    'Platform Owner',
-    '数字化平台部',
-    'admin@example.com',
-    '138-0000-0001',
-    'Shanghai',
-    '负责平台配置、账号治理和基础能力巡检。',
-    '#0f766e'
-  ),
-  (
-    'U-10002',
-    'alice',
-    crypt('Alice123!', gen_salt('bf')),
-    'Alice Chen',
-    'Operations Analyst',
-    '经营分析组',
-    'alice.chen@example.com',
-    '138-0000-0002',
-    'Hangzhou',
-    '负责经营分析与月度报表复核。',
-    '#c96f1f'
-  ),
-  (
-    'U-10003',
-    'bob',
-    crypt('Bob123!', gen_salt('bf')),
-    'Bob Wang',
-    'Regional Manager',
-    '华东区域',
-    'bob.wang@example.com',
-    '138-0000-0003',
-    'Nanjing',
-    '负责区域运营协同和多用户场景验证。',
-    '#8a4b14'
-  )
-ON CONFLICT (username) DO NOTHING;
+CREATE TABLE IF NOT EXISTS public.shipments (
+  id BIGSERIAL PRIMARY KEY,
+  batch_id UUID REFERENCES public.import_batches(id) ON DELETE SET NULL,
+  external_code TEXT,
+  sender_name TEXT NOT NULL,
+  sender_phone TEXT NOT NULL,
+  sender_address TEXT NOT NULL,
+  recipient_name TEXT NOT NULL,
+  recipient_phone TEXT NOT NULL,
+  recipient_address TEXT NOT NULL,
+  weight_kg NUMERIC(12, 3) NOT NULL,
+  package_count INTEGER NOT NULL,
+  temperature_zone TEXT NOT NULL,
+  note TEXT,
+  source_row_number INTEGER NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_shipments_external_code_unique
+  ON public.shipments (external_code)
+  WHERE external_code IS NOT NULL AND external_code <> '';
+
+CREATE INDEX IF NOT EXISTS idx_shipments_recipient_name
+  ON public.shipments (recipient_name);
+
+CREATE INDEX IF NOT EXISTS idx_shipments_created_at
+  ON public.shipments (created_at DESC);
