@@ -9,9 +9,14 @@
 - `DATABASE_URL`
 - `AUTH_SECRET`
 
+如果是 Vercel/Neon 集成，也可以直接使用：
+
+- `POSTGRES_URL_NON_POOLING`
+- `POSTGRES_URL`
+
 ## 初始化数据库
 
-执行 `database/schema.sql`，创建 `public.user_profiles` 表并插入初始用户。
+首次访问登录接口时会自动创建 `public.user_profiles` 表并写入 `admin/admin123` 等初始用户。
 
 ## 本地验证
 

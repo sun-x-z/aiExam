@@ -32,7 +32,7 @@ module.exports = async function usersHandler(req, res) {
       currentUser,
       users,
     });
-  } catch {
-    sendError(res, 500, "用户列表查询失败");
+  } catch (error) {
+    sendError(res, 500, error.code === "DB_CONFIG_MISSING" ? "数据库连接未配置" : `用户列表查询失败: ${error.message}`);
   }
 };

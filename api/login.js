@@ -39,7 +39,7 @@ module.exports = async function loginHandler(req, res) {
     const user = publicUser(row);
     const token = createSessionToken(user.username);
     sendJson(res, 200, { token, user });
-  } catch {
-    sendError(res, 500, "登录接口异常");
+  } catch (error) {
+    sendError(res, 500, error.code === "DB_CONFIG_MISSING" ? "数据库连接未配置" : `登录接口异常: ${error.message}`);
   }
 };
