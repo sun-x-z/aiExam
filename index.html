@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Simple User System</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="page-glow page-glow-left"></div>
+    <div class="page-glow page-glow-right"></div>
+
+    <main class="app-shell">
+      <section class="hero-card">
+        <p class="eyebrow">Simple User System</p>
+        <h1>登录后查看用户信息，并支持头像修改</h1>
+        <p class="hero-copy">
+          这是一个可直接部署到 Vercel 的静态应用，内置演示账号，本地即可完成登录、信息展示和头像持久化验证。
+        </p>
+
+        <div class="demo-users">
+          <h2>演示账号</h2>
+          <ul>
+            <li><span>admin</span><code>Admin123!</code></li>
+            <li><span>alice</span><code>Alice123!</code></li>
+            <li><span>bob</span><code>Bob123!</code></li>
+          </ul>
+        </div>
+      </section>
+
+      <section class="panel" id="login-panel">
+        <div class="panel-header">
+          <p class="section-kicker">Sign In</p>
+          <h2>用户登录</h2>
+        </div>
+
+        <form id="login-form" class="form-stack">
+          <label class="field">
+            <span>用户名</span>
+            <input id="username" name="username" type="text" autocomplete="username" placeholder="请输入用户名" required />
+          </label>
+
+          <label class="field">
+            <span>密码</span>
+            <input
+              id="password"
+              name="password"
+              type="password"
+              autocomplete="current-password"
+              placeholder="请输入密码"
+              required
+            />
+          </label>
+
+          <button class="primary-button" type="submit">登录</button>
+          <p id="login-message" class="form-message" aria-live="polite"></p>
+        </form>
+      </section>
+
+      <section class="panel dashboard hidden" id="dashboard-panel">
+        <div class="dashboard-topbar">
+          <div>
+            <p class="section-kicker">Profile</p>
+            <h2>当前用户信息</h2>
+          </div>
+          <button id="logout-button" class="ghost-button" type="button">退出登录</button>
+        </div>
+
+        <div class="profile-layout">
+          <div class="avatar-card">
+            <img id="avatar-image" class="avatar-image" alt="用户头像" />
+            <div class="avatar-actions">
+              <label class="secondary-button avatar-upload">
+                修改头像
+                <input id="avatar-input" type="file" accept="image/*" hidden />
+              </label>
+              <button id="reset-avatar-button" class="ghost-button" type="button">恢复默认</button>
+            </div>
+            <p class="avatar-note">头像仅保存在当前浏览器的本地存储中，便于演示完整流程。</p>
+          </div>
+
+          <div class="info-card">
+            <div class="info-hero">
+              <p id="user-role" class="role-pill"></p>
+              <h3 id="display-name"></h3>
+              <p id="user-bio" class="user-bio"></p>
+            </div>
+
+            <dl class="info-grid">
+              <div>
+                <dt>用户编号</dt>
+                <dd id="user-id"></dd>
+              </div>
+              <div>
+                <dt>部门</dt>
+                <dd id="user-department"></dd>
+              </div>
+              <div>
+                <dt>邮箱</dt>
+                <dd id="user-email"></dd>
+              </div>
+              <div>
+                <dt>手机号</dt>
+                <dd id="user-phone"></dd>
+              </div>
+              <div>
+                <dt>所在地</dt>
+                <dd id="user-location"></dd>
+              </div>
+              <div>
+                <dt>最近登录</dt>
+                <dd id="last-login"></dd>
+              </div>
+            </dl>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
