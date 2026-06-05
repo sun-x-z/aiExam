@@ -4,14 +4,21 @@
 
 :root {
   color-scheme: light;
-  --bg: #f7f8fa;
-  --panel: rgba(255, 255, 255, 0.94);
+  --bg: #eef5fa;
+  --workspace: #f4f8fb;
+  --panel: #ffffff;
   --panel-strong: #ffffff;
-  --line: #e5e6eb;
-  --text: #1d2129;
-  --muted: #86909c;
-  --accent: #0fc6c2;
-  --accent-soft: rgba(15, 198, 194, 0.12);
+  --line: #dde7ef;
+  --line-strong: #ccd9e3;
+  --text: #1f2a37;
+  --muted: #7b8794;
+  --accent: #00b3ad;
+  --accent-dark: #008c96;
+  --accent-soft: rgba(0, 179, 173, 0.1);
+  --topbar-start: #05b9b2;
+  --topbar-end: #005f84;
+  --sidebar: #002d3f;
+  --sidebar-active: rgba(0, 179, 173, 0.28);
   --warn: #d97b00;
   --ok: #00a870;
 }
@@ -29,7 +36,8 @@ body {
   margin: 0;
   color: var(--text);
   background: var(--bg);
-  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", "Segoe UI", sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Helvetica Neue", "Segoe UI", sans-serif;
+  font-size: 14px;
 }
 
 a {
@@ -42,6 +50,23 @@ input,
 select,
 textarea {
   font: inherit;
+}
+
+button {
+  transition: border-color 0.16s ease, background-color 0.16s ease, color 0.16s ease, box-shadow 0.16s ease;
+}
+
+input,
+select,
+textarea {
+  transition: border-color 0.16s ease, box-shadow 0.16s ease;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(0, 179, 173, 0.12);
 }
 
 ::selection {

@@ -3,18 +3,29 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from "react";
 import {
   ArrowRight,
+  Bell,
+  ChevronDown,
+  ChevronLeft,
+  ClipboardList,
   Database,
   Download,
   FileSpreadsheet,
+  FolderOpen,
+  Home,
   ListChecks,
   Loader2,
+  Maximize2,
   Play,
   Plus,
+  RefreshCw,
   Save,
   Search,
+  Settings,
   Sparkles,
   Trash2,
+  Truck,
   Upload,
+  UserRound,
 } from "lucide-react";
 import type { ImportField, ImportRow, ParsedWorkbookSource, ParseRule, ShipmentRecord } from "@/lib/types";
 import { EMPTY_IMPORT_VALUES, FIELD_LABELS, IMPORT_FIELDS } from "@/lib/import/constants";
@@ -462,20 +473,45 @@ export function ImportWorkspace() {
   }
 
   return (
-    <main className="min-h-screen bg-[var(--bg)] px-4 py-6 text-ink">
-      <div className="mx-auto flex w-full max-w-7xl flex-col gap-5">
-        <section className="grid gap-5 lg:grid-cols-[1fr_0.9fr]">
+    <main className="min-h-screen bg-[var(--workspace)] text-[var(--text)]">
+      <TopBar />
+      <div className="flex min-h-[calc(100vh-64px)]">
+        <SideNav />
+        <section className="min-w-0 flex-1">
+          <div className="flex h-11 items-center border-b border-[var(--line)] bg-white">
+            <button type="button" className="flex h-full w-11 items-center justify-center border-r border-[var(--line)] text-slate-700">
+              <ChevronLeft className="h-5 w-5" />
+            </button>
+            <div className="flex h-full items-center border-r border-[var(--line)] px-5 text-sm font-semibold text-[var(--accent)]">
+              智能导入下单
+              <span className="ml-2 text-base leading-none text-[var(--muted)]">×</span>
+            </div>
+            <div className="ml-auto flex h-full items-center divide-x divide-[var(--line)] border-l border-[var(--line)] text-slate-600">
+              <button type="button" className="flex h-full w-11 items-center justify-center">
+                <RefreshCw className="h-4 w-4" />
+              </button>
+              <button type="button" className="flex h-full w-11 items-center justify-center">
+                <ChevronDown className="h-4 w-4" />
+              </button>
+              <button type="button" className="flex h-full w-11 items-center justify-center">
+                <Maximize2 className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+
+          <div className="flex w-full flex-col gap-4 p-4">
+        <section className="grid gap-4 lg:grid-cols-[1fr_0.9fr]">
           <Panel>
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
                 <p className="text-xs font-semibold uppercase text-[var(--muted)]">AI Exam 2.0</p>
-                <h1 className="mt-2 text-3xl font-semibold tracking-normal text-ink">智能多格式批量下单</h1>
+                <h1 className="mt-1 text-xl font-semibold tracking-normal text-[var(--text)]">智能多格式批量下单</h1>
               </div>
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={isLoadingFile}
-                className="inline-flex items-center gap-2 rounded-lg bg-[var(--accent)] px-4 py-2.5 text-sm font-semibold text-white shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex h-9 items-center gap-2 rounded bg-[var(--accent)] px-4 text-sm font-semibold text-white shadow-sm hover:bg-[var(--accent-dark)] disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {isLoadingFile ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
                 上传文件
@@ -485,7 +521,7 @@ export function ImportWorkspace() {
             <input ref={fileInputRef} type="file" accept=".xlsx,.xls,.docx,.pdf" hidden onChange={handleFileChange} />
 
             <label
-              className="mt-5 flex min-h-36 cursor-pointer flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-[var(--line)] bg-white p-5 text-center"
+              className="mt-4 flex min-h-28 cursor-pointer flex-col items-center justify-center gap-2 rounded border border-dashed border-[var(--line-strong)] bg-[#fbfdff] p-4 text-center hover:border-[var(--accent)]"
               onDragOver={(event) => event.preventDefault()}
               onDrop={(event) => {
                 event.preventDefault();
@@ -501,7 +537,7 @@ export function ImportWorkspace() {
               </div>
             </label>
 
-            <div className="mt-5 grid gap-3 sm:grid-cols-3">
+            <div className="mt-4 grid gap-3 sm:grid-cols-3">
               <StatCard icon={<FileSpreadsheet className="h-4 w-4" />} title="文件类型" value={source?.fileKind.toUpperCase() || "-"} />
               <StatCard icon={<ListChecks className="h-4 w-4" />} title="预览行" value={String(rows.length)} />
               <StatCard icon={<Database className="h-4 w-4" />} title="错误行" value={String(invalidRowCount)} />
@@ -575,7 +611,7 @@ export function ImportWorkspace() {
           </Panel>
         </section>
 
-        <section className="grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
+        <section className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
           <Panel>
             <div className="flex items-center justify-between gap-3">
               <h2 className="text-xl font-semibold">规则 JSON</h2>
@@ -693,7 +729,7 @@ export function ImportWorkspace() {
           </Panel>
         </section>
 
-        <section className="grid gap-5 xl:grid-cols-[1.15fr_0.85fr]">
+        <section className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
           <Panel>
             <div className="flex flex-wrap items-center justify-between gap-3">
               <h2 className="text-xl font-semibold">已导入运单</h2>
@@ -787,32 +823,135 @@ export function ImportWorkspace() {
             </div>
           </Panel>
         </section>
+          </div>
+        </section>
       </div>
     </main>
   );
 }
 
+function TopBar() {
+  const navItems = ["冷链快运", "网络货运", "项目管理", "财务中台", "更多租户 ..."];
+  const quickItems = ["返回旧版", "快件跟踪", "待办", "消息", "导出", "下载", "工单", "反馈"];
+
+  return (
+    <header className="flex h-16 items-center bg-[linear-gradient(100deg,var(--topbar-start),var(--topbar-end))] text-white">
+      <div className="flex h-full w-60 shrink-0 items-center gap-2 px-5">
+        <div className="text-4xl font-black italic leading-none tracking-normal">ZT</div>
+        <div className="leading-tight">
+          <div className="text-lg font-bold">中通冷链</div>
+          <div className="text-[10px] font-semibold uppercase tracking-[0.1em] opacity-90">ZTO COLD CHAIN</div>
+        </div>
+      </div>
+
+      <nav className="hidden h-full items-center lg:flex">
+        {navItems.map((item, index) => (
+          <button
+            type="button"
+            key={item}
+            className={`h-full px-6 text-[15px] font-semibold ${index === 1 ? "bg-white/10" : "hover:bg-white/10"}`}
+          >
+            {item}
+          </button>
+        ))}
+      </nav>
+
+      <div className="ml-auto flex h-full items-center gap-1 px-4 text-sm font-semibold">
+        {quickItems.map((item) => (
+          <button type="button" key={item} className="hidden h-full items-center gap-1 px-2 hover:bg-white/10 xl:flex">
+            {item === "消息" ? (
+              <span className="relative inline-flex">
+                <Bell className="h-4 w-4" />
+                <span className="absolute -right-2 -top-2 rounded-full bg-red-500 px-1 text-[10px] leading-4">8</span>
+              </span>
+            ) : null}
+            <span>{item}</span>
+          </button>
+        ))}
+        <div className="ml-2 flex items-center gap-2 border-l border-white/30 pl-4">
+          <span>孙立新</span>
+          <Settings className="h-4 w-4" />
+        </div>
+      </div>
+    </header>
+  );
+}
+
+function SideNav() {
+  const navItems: Array<{ label: string; icon: ReactNode; active?: boolean }> = [
+    { label: "首页", icon: <Home className="h-5 w-5" /> },
+    { label: "货主首页", icon: <FolderOpen className="h-5 w-5" /> },
+    { label: "网络货运", icon: <Truck className="h-5 w-5" />, active: true },
+    { label: "基础资料", icon: <FolderOpen className="h-5 w-5" /> },
+    { label: "货源管理", icon: <FolderOpen className="h-5 w-5" /> },
+    { label: "订单管理", icon: <ClipboardList className="h-5 w-5" /> },
+    { label: "运单管理", icon: <Truck className="h-5 w-5" /> },
+    { label: "基础管理", icon: <Settings className="h-5 w-5" /> },
+  ];
+
+  return (
+    <aside className="relative hidden w-60 shrink-0 bg-[var(--sidebar)] text-slate-200 md:block">
+      <div className="flex h-12 items-center justify-between border-b border-white/10 px-4 text-sm font-semibold">
+        <span className="flex items-center gap-2">
+          <UserRound className="h-4 w-4" />
+          总部
+        </span>
+        <ChevronDown className="h-4 w-4" />
+      </div>
+
+      <div className="p-4">
+        <div className="flex h-10 items-center gap-2 rounded-md border border-cyan-400/50 bg-cyan-400/10 px-3 text-sm text-white">
+          <Search className="h-4 w-4" />
+          <span>输入菜单名称</span>
+        </div>
+      </div>
+
+      <nav className="space-y-1 px-2">
+        {navItems.map((item) => (
+          <button
+            type="button"
+            key={item.label}
+            className={`flex h-12 w-full items-center gap-3 rounded-sm px-3 text-left text-[15px] font-semibold ${
+              item.active ? "bg-[var(--sidebar-active)] text-white" : "text-slate-300 hover:bg-white/10 hover:text-white"
+            }`}
+          >
+            {item.icon}
+            {item.label}
+          </button>
+        ))}
+      </nav>
+
+      <div className="absolute bottom-4 left-3 hidden h-11 w-36 items-center justify-between rounded-md bg-white px-3 text-sm text-slate-700 md:flex">
+        预发环境
+        <span className="h-6 w-12 rounded-full bg-slate-200 p-1">
+          <span className="block h-4 w-4 rounded-full bg-white shadow" />
+        </span>
+      </div>
+    </aside>
+  );
+}
+
 function Panel({ children }: { children: ReactNode }) {
-  return <div className="rounded-lg border border-[var(--line)] bg-[var(--panel)] p-5 shadow-panel">{children}</div>;
+  return <div className="rounded-md border border-[var(--line)] bg-[var(--panel)] p-4 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">{children}</div>;
 }
 
 function StatCard({ icon, title, value }: { icon: ReactNode; title: string; value: string }) {
   return (
-    <div className="rounded-lg border border-[var(--line)] bg-white p-4">
-      <div className="flex items-center gap-2 text-sm text-[var(--muted)]">
-        <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--accent-soft)] text-[var(--accent)]">
+    <div className="rounded-md border border-[var(--line)] bg-slate-50/50 p-3">
+      <div className="flex items-center gap-2 text-xs text-[var(--muted)]">
+        <span className="inline-flex h-7 w-7 items-center justify-center rounded-md bg-[var(--accent-soft)] text-[var(--accent)]">
           {icon}
         </span>
         {title}
       </div>
-      <p className="mt-3 text-2xl font-semibold">{value}</p>
+      <p className="mt-2 text-xl font-semibold">{value}</p>
     </div>
   );
 }
 
 function SummaryLine({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-center justify-between gap-4 rounded-lg bg-white px-4 py-3">
+    <div className="flex items-center justify-between gap-4 rounded-md border border-[var(--line)] bg-slate-50/50 px-3 py-2">
       <span className="text-sm text-[var(--muted)]">{label}</span>
       <span className="truncate text-right text-sm font-medium">{value}</span>
     </div>
@@ -837,11 +976,11 @@ function ProgressBar({ label, current, total }: { label: string; current: number
 }
 
 function Th({ children }: { children: ReactNode }) {
-  return <th className="sticky top-0 z-10 border-b border-[var(--line)] bg-slate-50 px-3 py-2.5 text-left text-xs font-semibold text-[var(--muted)]">{children}</th>;
+  return <th className="sticky top-0 z-10 border-b border-r border-[var(--line)] bg-[#f7f9fb] px-3 py-3 text-center text-sm font-semibold text-slate-900">{children}</th>;
 }
 
 function Td({ children, className = "" }: { children: ReactNode; className?: string }) {
-  return <td className={`border-b border-[var(--line)] px-3 py-2.5 align-top ${className}`}>{children}</td>;
+  return <td className={`border-b border-r border-[var(--line)] px-3 py-2.5 align-middle ${className}`}>{children}</td>;
 }
 
 function InputField({
@@ -857,12 +996,12 @@ function InputField({
 }) {
   return (
     <label className="grid gap-1.5 text-sm">
-      <span className="text-[var(--muted)]">{label}</span>
+      <span className="text-slate-700">{label}</span>
       <input
         type={type}
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="rounded-lg border border-[var(--line)] bg-white px-3 py-2 outline-none focus:border-[var(--accent)]"
+        className="h-9 rounded border border-[var(--line-strong)] bg-white px-3 text-sm outline-none"
       />
     </label>
   );
