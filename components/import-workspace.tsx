@@ -3,29 +3,18 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from "react";
 import {
   ArrowRight,
-  Bell,
-  ChevronDown,
-  ChevronLeft,
-  ClipboardList,
   Database,
   Download,
   FileSpreadsheet,
-  FolderOpen,
-  Home,
   ListChecks,
   Loader2,
-  Maximize2,
   Play,
   Plus,
-  RefreshCw,
   Save,
   Search,
-  Settings,
   Sparkles,
   Trash2,
-  Truck,
   Upload,
-  UserRound,
 } from "lucide-react";
 import type { ImportField, ImportRow, ParsedWorkbookSource, ParseRule, ShipmentRecord } from "@/lib/types";
 import { EMPTY_IMPORT_VALUES, FIELD_LABELS, IMPORT_FIELDS } from "@/lib/import/constants";
@@ -65,6 +54,8 @@ type ParseRuleRecord = {
   createdAt: string;
   updatedAt: string;
 };
+
+type ActivePage = "import" | "query";
 
 function makeEmptyRow(sourceRowNumber = 0): ImportRow {
   return {
@@ -191,6 +182,7 @@ export function ImportWorkspace() {
   });
   const [historyLoading, setHistoryLoading] = useState(false);
   const [previewPage, setPreviewPage] = useState(1);
+  const [activePage, setActivePage] = useState<ActivePage>("import");
 
   const validRowCount = useMemo(() => rows.filter((row) => row.issues.length === 0).length, [rows]);
   const invalidRowCount = rows.length - validRowCount;
@@ -476,353 +468,337 @@ export function ImportWorkspace() {
     <main className="min-h-screen bg-[var(--workspace)] text-[var(--text)]">
       <TopBar />
       <div className="flex min-h-[calc(100vh-64px)]">
-        <SideNav />
+        <SideNav activePage={activePage} onChange={setActivePage} />
         <section className="min-w-0 flex-1">
-          <div className="flex h-11 items-center border-b border-[var(--line)] bg-white">
-            <button type="button" className="flex h-full w-11 items-center justify-center border-r border-[var(--line)] text-slate-700">
-              <ChevronLeft className="h-5 w-5" />
-            </button>
-            <div className="flex h-full items-center border-r border-[var(--line)] px-5 text-sm font-semibold text-[var(--accent)]">
-              智能导入下单
-              <span className="ml-2 text-base leading-none text-[var(--muted)]">×</span>
-            </div>
-            <div className="ml-auto flex h-full items-center divide-x divide-[var(--line)] border-l border-[var(--line)] text-slate-600">
-              <button type="button" className="flex h-full w-11 items-center justify-center">
-                <RefreshCw className="h-4 w-4" />
-              </button>
-              <button type="button" className="flex h-full w-11 items-center justify-center">
-                <ChevronDown className="h-4 w-4" />
-              </button>
-              <button type="button" className="flex h-full w-11 items-center justify-center">
-                <Maximize2 className="h-4 w-4" />
-              </button>
-            </div>
-          </div>
-
           <div className="flex w-full flex-col gap-4 p-4">
-        <section className="grid gap-4 lg:grid-cols-[1fr_0.9fr]">
-          <Panel>
-            <div className="flex flex-wrap items-start justify-between gap-4">
-              <div>
-                <p className="text-xs font-semibold uppercase text-[var(--muted)]">AI Exam 2.0</p>
-                <h1 className="mt-1 text-xl font-semibold tracking-normal text-[var(--text)]">智能多格式批量下单</h1>
-              </div>
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={isLoadingFile}
-                className="inline-flex h-9 items-center gap-2 rounded bg-[var(--accent)] px-4 text-sm font-semibold text-white shadow-sm hover:bg-[var(--accent-dark)] disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {isLoadingFile ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-                上传文件
-              </button>
-            </div>
+            {activePage === "import" ? (
+              <>
+                <section className="grid gap-4 lg:grid-cols-[1fr_0.9fr]">
+                  <Panel>
+                    <div className="flex flex-wrap items-start justify-between gap-4">
+                      <div>
+                        <p className="text-xs font-semibold uppercase text-[var(--muted)]">Waybill Import</p>
+                        <h1 className="mt-1 text-xl font-semibold tracking-normal text-[var(--text)]">运单智能导入</h1>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={isLoadingFile}
+                        className="inline-flex h-9 items-center gap-2 rounded bg-[var(--accent)] px-4 text-sm font-semibold text-white shadow-sm hover:bg-[var(--accent-dark)] disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {isLoadingFile ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                        上传文件
+                      </button>
+                    </div>
 
-            <input ref={fileInputRef} type="file" accept=".xlsx,.xls,.docx,.pdf" hidden onChange={handleFileChange} />
+                    <input ref={fileInputRef} type="file" accept=".xlsx,.xls,.docx,.pdf" hidden onChange={handleFileChange} />
 
-            <label
-              className="mt-4 flex min-h-28 cursor-pointer flex-col items-center justify-center gap-2 rounded border border-dashed border-[var(--line-strong)] bg-[#fbfdff] p-4 text-center hover:border-[var(--accent)]"
-              onDragOver={(event) => event.preventDefault()}
-              onDrop={(event) => {
-                event.preventDefault();
-                const file = event.dataTransfer.files?.[0];
-                if (file) void handleFile(file);
-              }}
-              onClick={() => fileInputRef.current?.click()}
-            >
-              <Upload className="h-7 w-7 text-[var(--accent)]" />
-              <div>
-                <p className="font-semibold">拖拽或点击选择 Excel / Word / PDF</p>
-                <p className="mt-1 text-sm text-[var(--muted)]">{source?.fileName || "未选择文件"}</p>
-              </div>
-            </label>
+                    <label
+                      className="mt-4 flex min-h-28 cursor-pointer flex-col items-center justify-center gap-2 rounded border border-dashed border-[var(--line-strong)] bg-[#fbfdff] p-4 text-center hover:border-[var(--accent)]"
+                      onDragOver={(event) => event.preventDefault()}
+                      onDrop={(event) => {
+                        event.preventDefault();
+                        const file = event.dataTransfer.files?.[0];
+                        if (file) void handleFile(file);
+                      }}
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      <Upload className="h-7 w-7 text-[var(--accent)]" />
+                      <div>
+                        <p className="font-semibold">拖拽或点击选择 Excel / Word / PDF</p>
+                        <p className="mt-1 text-sm text-[var(--muted)]">{source?.fileName || "未选择文件"}</p>
+                      </div>
+                    </label>
 
-            <div className="mt-4 grid gap-3 sm:grid-cols-3">
-              <StatCard icon={<FileSpreadsheet className="h-4 w-4" />} title="文件类型" value={source?.fileKind.toUpperCase() || "-"} />
-              <StatCard icon={<ListChecks className="h-4 w-4" />} title="预览行" value={String(rows.length)} />
-              <StatCard icon={<Database className="h-4 w-4" />} title="错误行" value={String(invalidRowCount)} />
-            </div>
-          </Panel>
+                    <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                      <StatCard icon={<FileSpreadsheet className="h-4 w-4" />} title="文件类型" value={source?.fileKind.toUpperCase() || "-"} />
+                      <StatCard icon={<ListChecks className="h-4 w-4" />} title="预览行" value={String(rows.length)} />
+                      <StatCard icon={<Database className="h-4 w-4" />} title="错误行" value={String(invalidRowCount)} />
+                    </div>
+                  </Panel>
 
-          <Panel>
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-xs font-semibold uppercase text-[var(--muted)]">Rule</p>
-                <h2 className="mt-2 text-xl font-semibold">解析规则</h2>
-              </div>
-              <button
-                type="button"
-                onClick={handleGenerateRule}
-                disabled={!source || isGenerating}
-                className="inline-flex items-center gap-2 rounded-lg border border-[var(--line)] bg-white px-3 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {isGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-                新建规则
-              </button>
-            </div>
+                  <Panel>
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-semibold uppercase text-[var(--muted)]">Rule</p>
+                        <h2 className="mt-2 text-xl font-semibold">解析规则</h2>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleGenerateRule}
+                        disabled={!source || isGenerating}
+                        className="inline-flex items-center gap-2 rounded-lg border border-[var(--line)] bg-white px-3 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {isGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                        新建规则
+                      </button>
+                    </div>
 
-            <div className="mt-4 grid gap-3">
-              <label className="grid gap-2 text-sm">
-                <span className="text-[var(--muted)]">已保存规则</span>
-                <select
-                  value={selectedRuleId}
-                  onChange={(event) => handleSelectRule(event.target.value)}
-                  className="rounded-lg border border-[var(--line)] bg-white px-3 py-2 outline-none"
-                >
-                  <option value="">不选择，编辑新规则</option>
-                  {ruleRecords.map((record) => (
-                    <option key={record.id} value={record.id}>
-                      {record.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
+                    <div className="mt-4 grid gap-3">
+                      <label className="grid gap-2 text-sm">
+                        <span className="text-[var(--muted)]">已保存规则</span>
+                        <select
+                          value={selectedRuleId}
+                          onChange={(event) => handleSelectRule(event.target.value)}
+                          className="rounded-lg border border-[var(--line)] bg-white px-3 py-2 outline-none"
+                        >
+                          <option value="">不选择，编辑新规则</option>
+                          {ruleRecords.map((record) => (
+                            <option key={record.id} value={record.id}>
+                              {record.name}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
 
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={handleParsePreview}
-                  disabled={!source || !ruleDraft || isParsing}
-                  className="inline-flex items-center gap-2 rounded-lg bg-[var(--accent)] px-3 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {isParsing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
-                  试解析
-                </button>
-                <button
-                  type="button"
-                  onClick={handleSaveRule}
-                  disabled={!ruleDraft || isSavingRule}
-                  className="inline-flex items-center gap-2 rounded-lg border border-[var(--line)] bg-white px-3 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {isSavingRule ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                  保存规则
-                </button>
-                <button
-                  type="button"
-                  onClick={handleDeleteRule}
-                  disabled={!selectedRuleId}
-                  className="inline-flex items-center gap-2 rounded-lg border border-rose-200 bg-white px-3 py-2 text-sm font-semibold text-rose-600 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  <Trash2 className="h-4 w-4" />
-                  删除规则
-                </button>
-              </div>
-            </div>
-          </Panel>
-        </section>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={handleParsePreview}
+                          disabled={!source || !ruleDraft || isParsing}
+                          className="inline-flex items-center gap-2 rounded-lg bg-[var(--accent)] px-3 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {isParsing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+                          试解析
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleSaveRule}
+                          disabled={!ruleDraft || isSavingRule}
+                          className="inline-flex items-center gap-2 rounded-lg border border-[var(--line)] bg-white px-3 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {isSavingRule ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                          保存规则
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleDeleteRule}
+                          disabled={!selectedRuleId}
+                          className="inline-flex items-center gap-2 rounded-lg border border-rose-200 bg-white px-3 py-2 text-sm font-semibold text-rose-600 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                          删除规则
+                        </button>
+                      </div>
+                    </div>
+                  </Panel>
+                </section>
 
-        <section className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
-          <Panel>
-            <div className="flex items-center justify-between gap-3">
-              <h2 className="text-xl font-semibold">规则 JSON</h2>
-              <span className="text-sm text-[var(--muted)]">{selectedRuleId ? "编辑已保存规则" : "新规则草稿"}</span>
-            </div>
-            <textarea
-              value={ruleDraft}
-              onChange={(event) => setRuleDraft(event.target.value)}
-              spellCheck={false}
-              className="mt-4 h-[410px] w-full resize-none rounded-lg border border-[var(--line)] bg-slate-950 px-4 py-3 font-mono text-xs leading-5 text-slate-100 outline-none"
-              placeholder="上传文件后点击新建规则，或选择已保存规则。"
-            />
-            {(isParsing || parseProgress.total > 0) && (
-              <div className="mt-4 rounded-lg border border-[var(--line)] bg-white p-3">
-                <ProgressBar label={parseProgress.label} current={parseProgress.current} total={parseProgress.total} />
-              </div>
-            )}
-            {message ? <p className="mt-4 rounded-lg bg-[var(--accent-soft)] px-4 py-3 text-sm leading-6 text-[var(--accent)]">{message}</p> : null}
-          </Panel>
+                <section className="grid gap-4 xl:grid-cols-[0.82fr_1.18fr]">
+                  <Panel>
+                    <div className="flex items-center justify-between gap-3">
+                      <h2 className="text-xl font-semibold">规则 JSON</h2>
+                      <span className="text-sm text-[var(--muted)]">{selectedRuleId ? "编辑已保存规则" : "新规则草稿"}</span>
+                    </div>
+                    <textarea
+                      value={ruleDraft}
+                      onChange={(event) => setRuleDraft(event.target.value)}
+                      spellCheck={false}
+                      className="mt-4 h-[410px] w-full resize-none rounded-lg border border-[var(--line)] bg-slate-950 px-4 py-3 font-mono text-xs leading-5 text-slate-100 outline-none"
+                      placeholder="上传文件后点击新建规则，或选择已保存规则。"
+                    />
+                    {(isParsing || parseProgress.total > 0) && (
+                      <div className="mt-4 rounded-lg border border-[var(--line)] bg-white p-3">
+                        <ProgressBar label={parseProgress.label} current={parseProgress.current} total={parseProgress.total} />
+                      </div>
+                    )}
+                    {message ? <p className="mt-4 rounded-lg bg-[var(--accent-soft)] px-4 py-3 text-sm leading-6 text-[var(--accent)]">{message}</p> : null}
+                  </Panel>
 
-          <Panel>
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <h2 className="text-xl font-semibold">数据预览</h2>
-                <p className="mt-1 text-sm text-[var(--muted)]">有效 {validRowCount} 行 / 错误 {invalidRowCount} 行</p>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <button type="button" onClick={addBlankRow} className="inline-flex items-center gap-2 rounded-lg border border-[var(--line)] bg-white px-3 py-2 text-sm font-semibold">
-                  <Plus className="h-4 w-4" />
-                  新增空行
-                </button>
-                <button type="button" onClick={handleExport} disabled={!rows.length} className="inline-flex items-center gap-2 rounded-lg border border-[var(--line)] bg-white px-3 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-60">
-                  <Download className="h-4 w-4" />
-                  导出
-                </button>
-                <button type="button" onClick={handleSubmit} disabled={!rows.length || isSubmitting} className="inline-flex items-center gap-2 rounded-lg bg-[var(--accent)] px-3 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60">
-                  {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
-                  提交下单
-                </button>
-              </div>
-            </div>
+                  <Panel>
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <h2 className="text-xl font-semibold">数据预览</h2>
+                        <p className="mt-1 text-sm text-[var(--muted)]">有效 {validRowCount} 行 / 错误 {invalidRowCount} 行</p>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <button type="button" onClick={addBlankRow} className="inline-flex items-center gap-2 rounded-lg border border-[var(--line)] bg-white px-3 py-2 text-sm font-semibold">
+                          <Plus className="h-4 w-4" />
+                          新增空行
+                        </button>
+                        <button type="button" onClick={handleExport} disabled={!rows.length} className="inline-flex items-center gap-2 rounded-lg border border-[var(--line)] bg-white px-3 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-60">
+                          <Download className="h-4 w-4" />
+                          导出
+                        </button>
+                        <button type="button" onClick={handleSubmit} disabled={!rows.length || isSubmitting} className="inline-flex items-center gap-2 rounded-lg bg-[var(--accent)] px-3 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60">
+                          {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
+                          提交下单
+                        </button>
+                      </div>
+                    </div>
 
-            {allIssues.length ? (
-              <div className="mt-4 max-h-28 overflow-auto rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
-                {allIssues.map((issue, index) => (
-                  <p key={`${issue.rowNumber}-${issue.code}-${index}`}>
-                    第 {issue.rowNumber} 行 / {issue.field === "global" ? "整行" : FIELD_LABELS[issue.field]}：{issue.message}
+                    {allIssues.length ? (
+                      <div className="mt-4 max-h-28 overflow-auto rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+                        {allIssues.map((issue, index) => (
+                          <p key={`${issue.rowNumber}-${issue.code}-${index}`}>
+                            第 {issue.rowNumber} 行 / {issue.field === "global" ? "整行" : FIELD_LABELS[issue.field]}：{issue.message}
+                          </p>
+                        ))}
+                      </div>
+                    ) : null}
+
+                    <div className="mt-4 overflow-x-auto rounded-lg border border-[var(--line)] bg-white">
+                      <table className="min-w-[1280px] border-separate border-spacing-0 text-sm">
+                        <thead>
+                          <tr>
+                            <Th>行号</Th>
+                            {IMPORT_FIELDS.map((field) => (
+                              <Th key={field}>{FIELD_LABELS[field]}</Th>
+                            ))}
+                            <Th>操作</Th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {previewRows.length ? (
+                            previewRows.map((row, index) => (
+                              <tr key={row.id} className={row.issues.length ? "bg-rose-50" : index % 2 === 0 ? "bg-white" : "bg-slate-50/60"}>
+                                <Td className="w-20 text-center font-semibold">{row.sourceRowNumber}</Td>
+                                {IMPORT_FIELDS.map((field) => {
+                                  const issue = getIssueText(row, field);
+                                  return (
+                                    <Td key={field} className={issue ? "bg-rose-50" : ""}>
+                                      <input
+                                        value={row.values[field] ?? ""}
+                                        onChange={(event) => updateRow(row.id, field, event.target.value)}
+                                        className={`w-full rounded-md border px-2 py-1.5 outline-none ${issue ? "border-rose-400" : "border-[var(--line)]"}`}
+                                      />
+                                      {issue ? <p className="mt-1 text-xs text-rose-600">{issue}</p> : null}
+                                    </Td>
+                                  );
+                                })}
+                                <Td>
+                                  <button type="button" onClick={() => removeRow(row.id)} className="inline-flex items-center gap-1 rounded-md border border-[var(--line)] px-2 py-1 text-xs font-semibold">
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                    删除
+                                  </button>
+                                  {getGlobalIssueText(row) ? <p className="mt-1 text-xs text-rose-600">{getGlobalIssueText(row)}</p> : null}
+                                </Td>
+                              </tr>
+                            ))
+                          ) : (
+                            <tr>
+                              <td colSpan={IMPORT_FIELDS.length + 2} className="px-6 py-12 text-center text-sm text-[var(--muted)]">
+                                暂无预览数据。
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-sm text-[var(--muted)]">
+                      <span>
+                        第 {previewPage} / {previewPageCount} 页，每页 {previewPageSize} 行
+                      </span>
+                      <div className="flex gap-2">
+                        <button type="button" disabled={previewPage <= 1} onClick={() => setPreviewPage((page) => Math.max(1, page - 1))} className="rounded-lg border border-[var(--line)] bg-white px-3 py-1.5 disabled:opacity-50">
+                          上一页
+                        </button>
+                        <button type="button" disabled={previewPage >= previewPageCount} onClick={() => setPreviewPage((page) => Math.min(previewPageCount, page + 1))} className="rounded-lg border border-[var(--line)] bg-white px-3 py-1.5 disabled:opacity-50">
+                          下一页
+                        </button>
+                      </div>
+                    </div>
+                  </Panel>
+                </section>
+
+                <Panel>
+                  <h2 className="text-xl font-semibold">导入状态</h2>
+                  <div className="mt-4 grid gap-3 md:grid-cols-3 xl:grid-cols-6">
+                    <SummaryLine label="文件名" value={source?.fileName || "-"} />
+                    <SummaryLine label="Sheet" value={source?.sheets.map((sheet) => sheet.name).join(" / ") || "-"} />
+                    <SummaryLine label="规则" value={ruleDraft ? "已配置" : "-"} />
+                    <SummaryLine label="总行数" value={String(rows.length)} />
+                    <SummaryLine label="有效行" value={String(validRowCount)} />
+                    <SummaryLine label="错误行" value={String(invalidRowCount)} />
+                  </div>
+
+                  <div className="mt-4 rounded-lg border border-[var(--line)] bg-white p-4">
+                    <div className="flex items-center justify-between text-sm">
+                      <span>提交结果</span>
+                      <span className="font-semibold text-[var(--accent)]">{submitSummary ? `${submitSummary.success} 成功 / ${submitSummary.failure} 失败` : "-"}</span>
+                    </div>
+                    <div className="mt-3">
+                      <ProgressBar label={submitProgress.label} current={submitProgress.current} total={submitProgress.total} />
+                    </div>
+                  </div>
+                </Panel>
+              </>
+            ) : (
+              <Panel>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-semibold uppercase text-[var(--muted)]">Waybill Search</p>
+                    <h1 className="mt-1 text-xl font-semibold">导入运单查询</h1>
+                  </div>
+                  <button type="button" onClick={() => void loadHistory(1)} className="inline-flex items-center gap-2 rounded-lg border border-[var(--line)] bg-white px-3 py-2 text-sm font-semibold">
+                    <Search className="h-4 w-4" />
+                    查询
+                  </button>
+                </div>
+
+                <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+                  <InputField label="关键字" value={filters.q} onChange={(value) => setFilters((prev) => ({ ...prev, q: value }))} />
+                  <InputField label="外部编码" value={filters.externalCode} onChange={(value) => setFilters((prev) => ({ ...prev, externalCode: value }))} />
+                  <InputField label="收件人/门店" value={filters.recipientName} onChange={(value) => setFilters((prev) => ({ ...prev, recipientName: value }))} />
+                  <InputField label="开始时间" value={filters.from} type="datetime-local" onChange={(value) => setFilters((prev) => ({ ...prev, from: value }))} />
+                  <InputField label="结束时间" value={filters.to} type="datetime-local" onChange={(value) => setFilters((prev) => ({ ...prev, to: value }))} />
+                </div>
+
+                <div className="mt-4 overflow-x-auto rounded-lg border border-[var(--line)] bg-white">
+                  <table className="min-w-[960px] border-separate border-spacing-0 text-sm">
+                    <thead>
+                      <tr>
+                        <Th>外部编码</Th>
+                        <Th>收货门店/收件人</Th>
+                        <Th>SKU</Th>
+                        <Th>数量</Th>
+                        <Th>提交时间</Th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {historyLoading ? (
+                        <tr>
+                          <td colSpan={5} className="px-6 py-10 text-center text-sm text-[var(--muted)]">
+                            加载中...
+                          </td>
+                        </tr>
+                      ) : history.items.length ? (
+                        history.items.map((item) => (
+                          <tr key={item.id} className="odd:bg-white even:bg-slate-50/60">
+                            <Td>{item.externalCode || "-"}</Td>
+                            <Td>{item.storeName || item.recipientName || "-"}</Td>
+                            <Td>{item.skuName}</Td>
+                            <Td>{item.skuQuantity}</Td>
+                            <Td>{new Date(item.createdAt).toLocaleString("zh-CN")}</Td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan={5} className="px-6 py-10 text-center text-sm text-[var(--muted)]">
+                            暂无历史运单。
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="mt-3 flex items-center justify-between text-sm text-[var(--muted)]">
+                  <p>
+                    共 {history.total} 条，当前第 {history.page} 页
                   </p>
-                ))}
-              </div>
-            ) : null}
-
-            <div className="mt-4 overflow-x-auto rounded-lg border border-[var(--line)] bg-white">
-              <table className="min-w-[1280px] border-separate border-spacing-0 text-sm">
-                <thead>
-                  <tr>
-                    <Th>行号</Th>
-                    {IMPORT_FIELDS.map((field) => (
-                      <Th key={field}>{FIELD_LABELS[field]}</Th>
-                    ))}
-                    <Th>操作</Th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {previewRows.length ? (
-                    previewRows.map((row, index) => (
-                      <tr key={row.id} className={row.issues.length ? "bg-rose-50" : index % 2 === 0 ? "bg-white" : "bg-slate-50/60"}>
-                        <Td className="w-20 text-center font-semibold">{row.sourceRowNumber}</Td>
-                        {IMPORT_FIELDS.map((field) => {
-                          const issue = getIssueText(row, field);
-                          return (
-                            <Td key={field} className={issue ? "bg-rose-50" : ""}>
-                              <input
-                                value={row.values[field] ?? ""}
-                                onChange={(event) => updateRow(row.id, field, event.target.value)}
-                                className={`w-full rounded-md border px-2 py-1.5 outline-none ${issue ? "border-rose-400" : "border-[var(--line)]"}`}
-                              />
-                              {issue ? <p className="mt-1 text-xs text-rose-600">{issue}</p> : null}
-                            </Td>
-                          );
-                        })}
-                        <Td>
-                          <button type="button" onClick={() => removeRow(row.id)} className="inline-flex items-center gap-1 rounded-md border border-[var(--line)] px-2 py-1 text-xs font-semibold">
-                            <Trash2 className="h-3.5 w-3.5" />
-                            删除
-                          </button>
-                          {getGlobalIssueText(row) ? <p className="mt-1 text-xs text-rose-600">{getGlobalIssueText(row)}</p> : null}
-                        </Td>
-                      </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td colSpan={IMPORT_FIELDS.length + 2} className="px-6 py-12 text-center text-sm text-[var(--muted)]">
-                        暂无预览数据。
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-
-            <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-sm text-[var(--muted)]">
-              <span>
-                第 {previewPage} / {previewPageCount} 页，每页 {previewPageSize} 行
-              </span>
-              <div className="flex gap-2">
-                <button type="button" disabled={previewPage <= 1} onClick={() => setPreviewPage((page) => Math.max(1, page - 1))} className="rounded-lg border border-[var(--line)] bg-white px-3 py-1.5 disabled:opacity-50">
-                  上一页
-                </button>
-                <button type="button" disabled={previewPage >= previewPageCount} onClick={() => setPreviewPage((page) => Math.min(previewPageCount, page + 1))} className="rounded-lg border border-[var(--line)] bg-white px-3 py-1.5 disabled:opacity-50">
-                  下一页
-                </button>
-              </div>
-            </div>
-          </Panel>
-        </section>
-
-        <section className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
-          <Panel>
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <h2 className="text-xl font-semibold">已导入运单</h2>
-              <button type="button" onClick={() => void loadHistory(1)} className="inline-flex items-center gap-2 rounded-lg border border-[var(--line)] bg-white px-3 py-2 text-sm font-semibold">
-                <Search className="h-4 w-4" />
-                查询
-              </button>
-            </div>
-
-            <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-              <InputField label="关键字" value={filters.q} onChange={(value) => setFilters((prev) => ({ ...prev, q: value }))} />
-              <InputField label="外部编码" value={filters.externalCode} onChange={(value) => setFilters((prev) => ({ ...prev, externalCode: value }))} />
-              <InputField label="收件人/门店" value={filters.recipientName} onChange={(value) => setFilters((prev) => ({ ...prev, recipientName: value }))} />
-              <InputField label="开始时间" value={filters.from} type="datetime-local" onChange={(value) => setFilters((prev) => ({ ...prev, from: value }))} />
-              <InputField label="结束时间" value={filters.to} type="datetime-local" onChange={(value) => setFilters((prev) => ({ ...prev, to: value }))} />
-            </div>
-
-            <div className="mt-4 overflow-x-auto rounded-lg border border-[var(--line)] bg-white">
-              <table className="min-w-[960px] border-separate border-spacing-0 text-sm">
-                <thead>
-                  <tr>
-                    <Th>外部编码</Th>
-                    <Th>收货门店/收件人</Th>
-                    <Th>SKU</Th>
-                    <Th>数量</Th>
-                    <Th>提交时间</Th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {historyLoading ? (
-                    <tr>
-                      <td colSpan={5} className="px-6 py-10 text-center text-sm text-[var(--muted)]">
-                        加载中...
-                      </td>
-                    </tr>
-                  ) : history.items.length ? (
-                    history.items.map((item) => (
-                      <tr key={item.id} className="odd:bg-white even:bg-slate-50/60">
-                        <Td>{item.externalCode || "-"}</Td>
-                        <Td>{item.storeName || item.recipientName || "-"}</Td>
-                        <Td>{item.skuName}</Td>
-                        <Td>{item.skuQuantity}</Td>
-                        <Td>{new Date(item.createdAt).toLocaleString("zh-CN")}</Td>
-                      </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td colSpan={5} className="px-6 py-10 text-center text-sm text-[var(--muted)]">
-                        暂无历史运单。
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-
-            <div className="mt-3 flex items-center justify-between text-sm text-[var(--muted)]">
-              <p>
-                共 {history.total} 条，当前第 {history.page} 页
-              </p>
-              <div className="flex gap-2">
-                <button type="button" disabled={history.page <= 1 || historyLoading} onClick={() => void loadHistory(history.page - 1)} className="rounded-lg border border-[var(--line)] bg-white px-3 py-1.5 disabled:opacity-50">
-                  上一页
-                </button>
-                <button type="button" disabled={history.page * history.pageSize >= history.total || historyLoading} onClick={() => void loadHistory(history.page + 1)} className="rounded-lg border border-[var(--line)] bg-white px-3 py-1.5 disabled:opacity-50">
-                  下一页
-                </button>
-              </div>
-            </div>
-          </Panel>
-
-          <Panel>
-            <h2 className="text-xl font-semibold">导入状态</h2>
-            <div className="mt-4 space-y-3">
-              <SummaryLine label="文件名" value={source?.fileName || "-"} />
-              <SummaryLine label="Sheet" value={source?.sheets.map((sheet) => sheet.name).join(" / ") || "-"} />
-              <SummaryLine label="规则" value={ruleDraft ? "已配置" : "-"} />
-              <SummaryLine label="总行数" value={String(rows.length)} />
-              <SummaryLine label="有效行" value={String(validRowCount)} />
-              <SummaryLine label="错误行" value={String(invalidRowCount)} />
-            </div>
-
-            <div className="mt-5 rounded-lg border border-[var(--line)] bg-white p-4">
-              <div className="flex items-center justify-between text-sm">
-                <span>提交结果</span>
-                <span className="font-semibold text-[var(--accent)]">{submitSummary ? `${submitSummary.success} 成功 / ${submitSummary.failure} 失败` : "-"}</span>
-              </div>
-              <div className="mt-3">
-                <ProgressBar label={submitProgress.label} current={submitProgress.current} total={submitProgress.total} />
-              </div>
-            </div>
-          </Panel>
-        </section>
+                  <div className="flex gap-2">
+                    <button type="button" disabled={history.page <= 1 || historyLoading} onClick={() => void loadHistory(history.page - 1)} className="rounded-lg border border-[var(--line)] bg-white px-3 py-1.5 disabled:opacity-50">
+                      上一页
+                    </button>
+                    <button type="button" disabled={history.page * history.pageSize >= history.total || historyLoading} onClick={() => void loadHistory(history.page + 1)} className="rounded-lg border border-[var(--line)] bg-white px-3 py-1.5 disabled:opacity-50">
+                      下一页
+                    </button>
+                  </div>
+                </div>
+              </Panel>
+            )}
           </div>
         </section>
       </div>
@@ -831,9 +807,6 @@ export function ImportWorkspace() {
 }
 
 function TopBar() {
-  const navItems = ["冷链快运", "网络货运", "项目管理", "财务中台", "更多租户 ..."];
-  const quickItems = ["返回旧版", "快件跟踪", "待办", "消息", "导出", "下载", "工单", "反馈"];
-
   return (
     <header className="flex h-16 items-center bg-[linear-gradient(100deg,var(--topbar-start),var(--topbar-end))] text-white">
       <div className="flex h-full w-60 shrink-0 items-center gap-2 px-5">
@@ -843,76 +816,30 @@ function TopBar() {
           <div className="text-[10px] font-semibold uppercase tracking-[0.1em] opacity-90">ZTO COLD CHAIN</div>
         </div>
       </div>
-
-      <nav className="hidden h-full items-center lg:flex">
-        {navItems.map((item, index) => (
-          <button
-            type="button"
-            key={item}
-            className={`h-full px-6 text-[15px] font-semibold ${index === 1 ? "bg-white/10" : "hover:bg-white/10"}`}
-          >
-            {item}
-          </button>
-        ))}
-      </nav>
-
-      <div className="ml-auto flex h-full items-center gap-1 px-4 text-sm font-semibold">
-        {quickItems.map((item) => (
-          <button type="button" key={item} className="hidden h-full items-center gap-1 px-2 hover:bg-white/10 xl:flex">
-            {item === "消息" ? (
-              <span className="relative inline-flex">
-                <Bell className="h-4 w-4" />
-                <span className="absolute -right-2 -top-2 rounded-full bg-red-500 px-1 text-[10px] leading-4">8</span>
-              </span>
-            ) : null}
-            <span>{item}</span>
-          </button>
-        ))}
-        <div className="ml-2 flex items-center gap-2 border-l border-white/30 pl-4">
-          <span>孙立新</span>
-          <Settings className="h-4 w-4" />
-        </div>
-      </div>
     </header>
   );
 }
 
-function SideNav() {
-  const navItems: Array<{ label: string; icon: ReactNode; active?: boolean }> = [
-    { label: "首页", icon: <Home className="h-5 w-5" /> },
-    { label: "货主首页", icon: <FolderOpen className="h-5 w-5" /> },
-    { label: "网络货运", icon: <Truck className="h-5 w-5" />, active: true },
-    { label: "基础资料", icon: <FolderOpen className="h-5 w-5" /> },
-    { label: "货源管理", icon: <FolderOpen className="h-5 w-5" /> },
-    { label: "订单管理", icon: <ClipboardList className="h-5 w-5" /> },
-    { label: "运单管理", icon: <Truck className="h-5 w-5" /> },
-    { label: "基础管理", icon: <Settings className="h-5 w-5" /> },
+function SideNav({ activePage, onChange }: { activePage: ActivePage; onChange: (page: ActivePage) => void }) {
+  const navItems: Array<{ label: string; page: ActivePage; icon: ReactNode }> = [
+    { label: "运单智能导入", page: "import", icon: <Upload className="h-5 w-5" /> },
+    { label: "导入运单查询", page: "query", icon: <Search className="h-5 w-5" /> },
   ];
 
   return (
     <aside className="relative hidden w-60 shrink-0 bg-[var(--sidebar)] text-slate-200 md:block">
-      <div className="flex h-12 items-center justify-between border-b border-white/10 px-4 text-sm font-semibold">
-        <span className="flex items-center gap-2">
-          <UserRound className="h-4 w-4" />
-          总部
-        </span>
-        <ChevronDown className="h-4 w-4" />
+      <div className="flex h-12 items-center border-b border-white/10 px-4 text-sm font-semibold text-white">
+        运单导入
       </div>
 
-      <div className="p-4">
-        <div className="flex h-10 items-center gap-2 rounded-md border border-cyan-400/50 bg-cyan-400/10 px-3 text-sm text-white">
-          <Search className="h-4 w-4" />
-          <span>输入菜单名称</span>
-        </div>
-      </div>
-
-      <nav className="space-y-1 px-2">
+      <nav className="space-y-1 px-2 py-3">
         {navItems.map((item) => (
           <button
             type="button"
             key={item.label}
+            onClick={() => onChange(item.page)}
             className={`flex h-12 w-full items-center gap-3 rounded-sm px-3 text-left text-[15px] font-semibold ${
-              item.active ? "bg-[var(--sidebar-active)] text-white" : "text-slate-300 hover:bg-white/10 hover:text-white"
+              activePage === item.page ? "bg-[var(--sidebar-active)] text-white" : "text-slate-300 hover:bg-white/10 hover:text-white"
             }`}
           >
             {item.icon}
