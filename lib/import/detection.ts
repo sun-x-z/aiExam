@@ -1,5 +1,5 @@
 import type { ImportField, WorkbookTemplateMatch } from "@/lib/types";
-import { FIELD_ALIASES, REQUIRED_FIELDS } from "@/lib/import/constants";
+import { FIELD_ALIASES, REQUIRED_SKU_FIELDS } from "@/lib/import/constants";
 import { fingerprintHeaders, normalizeText } from "@/lib/import/normalize";
 
 function scoreCellForField(cell: string, field: ImportField) {
@@ -33,7 +33,7 @@ function scoreHeaderRow(header: string[]) {
     }
   });
 
-  const requiredHits = REQUIRED_FIELDS.filter((field) => mapping[field]?.length).length;
+  const requiredHits = REQUIRED_SKU_FIELDS.filter((field) => mapping[field]?.length).length;
   score += requiredHits * 4 + matchedColumns.size * 2;
   return { score, mapping, requiredHits, distinctMatchedColumns: matchedColumns.size };
 }
@@ -44,7 +44,7 @@ export function detectTemplateFromSheet(sheetName: string, rows: string[][]): Wo
   for (let rowIndex = 0; rowIndex < Math.min(rows.length, 15); rowIndex += 1) {
     const header = rows[rowIndex] || [];
     const { score, mapping, requiredHits, distinctMatchedColumns } = scoreHeaderRow(header);
-    if (requiredHits < 4 || distinctMatchedColumns < 4) continue;
+    if (requiredHits < 2 || distinctMatchedColumns < 3) continue;
 
     const candidate: WorkbookTemplateMatch = {
       sheetName,

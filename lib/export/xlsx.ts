@@ -4,15 +4,14 @@ export async function exportRowsToWorkbook(rows: ImportRow[], fileName = "import
   const XLSX = await import("xlsx");
   const data = rows.map((row) => ({
     外部编码: row.values.externalCode,
-    发件人姓名: row.values.senderName,
-    发件人电话: row.values.senderPhone,
-    发件人地址: row.values.senderAddress,
+    收货门店: row.values.storeName,
     收件人姓名: row.values.recipientName,
     收件人电话: row.values.recipientPhone,
     收件人地址: row.values.recipientAddress,
-    重量_kg: row.values.weightKg,
-    件数: row.values.packageCount,
-    温层: row.values.temperatureZone,
+    SKU物品编码: row.values.skuCode,
+    SKU物品名称: row.values.skuName,
+    SKU发货数量: row.values.skuQuantity,
+    SKU规格型号: row.values.skuSpec,
     备注: row.values.note,
   }));
 
@@ -21,4 +20,3 @@ export async function exportRowsToWorkbook(rows: ImportRow[], fileName = "import
   XLSX.utils.book_append_sheet(workbook, worksheet, "预览数据");
   XLSX.writeFile(workbook, fileName);
 }
-

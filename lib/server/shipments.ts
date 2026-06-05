@@ -2,14 +2,37 @@ import type { ImportBatchRecord, ImportRow, ShipmentRecord } from "@/lib/types";
 import { query, withClient } from "@/lib/server/db";
 
 export async function createImportBatch(fileName: string, sheetName: string, templateFingerprint: string, totalCount: number) {
-  const result = await query<ImportBatchRecord>(
+  const result = await query<{
+    id: string;
+    file_name: string;
+    sheet_name: string;
+    template_fingerprint: string;
+    total_count: number;
+    success_count: number;
+    failure_count: number;
+    status: ImportBatchRecord["status"];
+    created_at: string;
+    updated_at: string;
+  }>(
     `INSERT INTO public.import_batches (file_name, sheet_name, template_fingerprint, total_count, status)
      VALUES ($1, $2, $3, $4, 'draft')
      RETURNING id, file_name, sheet_name, template_fingerprint, total_count, success_count, failure_count, status, created_at, updated_at`,
     [fileName, sheetName, templateFingerprint, totalCount]
   );
 
-  return result.rows[0];
+  const row = result.rows[0];
+  return {
+    id: row.id,
+    fileName: row.file_name,
+    sheetName: row.sheet_name,
+    templateFingerprint: row.template_fingerprint,
+    totalCount: row.total_count,
+    successCount: row.success_count,
+    failureCount: row.failure_count,
+    status: row.status,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
 }
 
 export async function updateBatchSummary(batchId: string, successCount: number, failureCount: number, status: ImportBatchRecord["status"] = "done") {
@@ -28,19 +51,18 @@ export async function insertShipmentRows(batchId: string, rows: ImportRow[]) {
 
     for (const row of rows) {
       const externalCode = String(row.values.externalCode || "").trim() || null;
-      const senderName = String(row.values.senderName || "").trim();
-      const senderPhone = String(row.values.senderPhone || "").trim();
-      const senderAddress = String(row.values.senderAddress || "").trim();
+      const storeName = String(row.values.storeName || "").trim() || null;
       const recipientName = String(row.values.recipientName || "").trim();
       const recipientPhone = String(row.values.recipientPhone || "").trim();
       const recipientAddress = String(row.values.recipientAddress || "").trim();
-      const weightKg = Number(row.values.weightKg);
-      const packageCount = Number(row.values.packageCount);
-      const temperatureZone = String(row.values.temperatureZone || "").trim();
+      const skuCode = String(row.values.skuCode || "").trim();
+      const skuName = String(row.values.skuName || "").trim();
+      const skuQuantity = Number(row.values.skuQuantity);
+      const skuSpec = String(row.values.skuSpec || "").trim() || null;
       const note = String(row.values.note || "").trim() || null;
+      const sourceSheetName = row.sourceSheetName || null;
 
-      const hasErrors = row.issues.length > 0;
-      if (hasErrors) {
+      if (row.issues.length > 0) {
         failures.push({ rowNumber: row.sourceRowNumber, message: "存在校验错误，已跳过", field: "global" });
         continue;
       }
@@ -48,13 +70,13 @@ export async function insertShipmentRows(batchId: string, rows: ImportRow[]) {
       try {
         const duplicateCheck = externalCode
           ? await client.query<{ id: number }>(
-              `SELECT id FROM public.shipments WHERE external_code = $1 LIMIT 1`,
-              [externalCode]
+              `SELECT id FROM public.shipments WHERE external_code = $1 AND sku_code = $2 LIMIT 1`,
+              [externalCode, skuCode]
             )
           : { rows: [] as Array<{ id: number }> };
 
         if (externalCode && duplicateCheck.rows[0]) {
-          failures.push({ rowNumber: row.sourceRowNumber, message: "外部编码已存在于历史运单中", field: "externalCode" });
+          failures.push({ rowNumber: row.sourceRowNumber, message: "外部编码 + SKU 已存在于历史运单中", field: "externalCode" });
           continue;
         }
 
@@ -65,25 +87,25 @@ export async function insertShipmentRows(batchId: string, rows: ImportRow[]) {
           source_row_number: number;
         }>(
           `INSERT INTO public.shipments (
-            batch_id, external_code, sender_name, sender_phone, sender_address,
-            recipient_name, recipient_phone, recipient_address, weight_kg, package_count,
-            temperature_zone, note, source_row_number
-          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+            batch_id, external_code, store_name, recipient_name, recipient_phone, recipient_address,
+            sku_code, sku_name, sku_quantity, sku_spec, note, source_row_number, source_sheet_name,
+            sender_name, sender_phone, sender_address, weight_kg, package_count, temperature_zone
+          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'','','',1,1,'常温')
           RETURNING id, batch_id, external_code, source_row_number`,
           [
             batchId,
             externalCode,
-            senderName,
-            senderPhone,
-            senderAddress,
+            storeName,
             recipientName,
             recipientPhone,
             recipientAddress,
-            weightKg,
-            packageCount,
-            temperatureZone,
+            skuCode,
+            skuName,
+            skuQuantity,
+            skuSpec,
             note,
             row.sourceRowNumber,
+            sourceSheetName,
           ]
         );
 
@@ -115,7 +137,7 @@ export async function listShipments(params: {
 
   if (params.q) {
     values.push(`%${params.q}%`);
-    where.push(`(external_code ILIKE $${values.length} OR recipient_name ILIKE $${values.length})`);
+    where.push(`(external_code ILIKE $${values.length} OR recipient_name ILIKE $${values.length} OR store_name ILIKE $${values.length} OR sku_name ILIKE $${values.length})`);
   }
   if (params.externalCode) {
     values.push(`%${params.externalCode}%`);
@@ -123,7 +145,7 @@ export async function listShipments(params: {
   }
   if (params.recipientName) {
     values.push(`%${params.recipientName}%`);
-    where.push(`recipient_name ILIKE $${values.length}`);
+    where.push(`(recipient_name ILIKE $${values.length} OR store_name ILIKE $${values.length})`);
   }
   if (params.from) {
     values.push(params.from);
@@ -138,9 +160,8 @@ export async function listShipments(params: {
   const limitIndex = values.push(params.pageSize);
   const offsetIndex = values.push(offset);
   const sql = `
-    SELECT id, batch_id, external_code, sender_name, sender_phone, sender_address,
-           recipient_name, recipient_phone, recipient_address, weight_kg, package_count,
-           temperature_zone, note, source_row_number, created_at
+    SELECT id, batch_id, external_code, store_name, recipient_name, recipient_phone, recipient_address,
+           sku_code, sku_name, sku_quantity, sku_spec, note, source_row_number, source_sheet_name, created_at
     FROM public.shipments
     ${where.length ? `WHERE ${where.join(" AND ")}` : ""}
     ORDER BY created_at DESC, id DESC
@@ -158,17 +179,17 @@ export async function listShipments(params: {
       id: number;
       batch_id: string;
       external_code: string | null;
-      sender_name: string;
-      sender_phone: string;
-      sender_address: string;
-      recipient_name: string;
-      recipient_phone: string;
-      recipient_address: string;
-      weight_kg: number;
-      package_count: number;
-      temperature_zone: ShipmentRecord["temperatureZone"];
+      store_name: string | null;
+      recipient_name: string | null;
+      recipient_phone: string | null;
+      recipient_address: string | null;
+      sku_code: string;
+      sku_name: string;
+      sku_quantity: number;
+      sku_spec: string | null;
       note: string | null;
       source_row_number: number;
+      source_sheet_name: string | null;
       created_at: string;
     }>(sql, values),
     query<{ total: number }>(countSql, values.slice(0, values.length - 2)),
@@ -179,17 +200,17 @@ export async function listShipments(params: {
       id: row.id,
       batchId: row.batch_id,
       externalCode: row.external_code,
-      senderName: row.sender_name,
-      senderPhone: row.sender_phone,
-      senderAddress: row.sender_address,
+      storeName: row.store_name,
       recipientName: row.recipient_name,
       recipientPhone: row.recipient_phone,
       recipientAddress: row.recipient_address,
-      weightKg: Number(row.weight_kg),
-      packageCount: Number(row.package_count),
-      temperatureZone: row.temperature_zone,
+      skuCode: row.sku_code || "",
+      skuName: row.sku_name || "",
+      skuQuantity: Number(row.sku_quantity),
+      skuSpec: row.sku_spec,
       note: row.note,
       sourceRowNumber: row.source_row_number,
+      sourceSheetName: row.source_sheet_name,
       createdAt: row.created_at,
     })),
     total: countResult.rows[0]?.total ?? 0,
