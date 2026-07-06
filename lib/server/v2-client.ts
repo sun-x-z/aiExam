@@ -48,10 +48,8 @@ function getV2BaseUrl() {
   const configured = process.env.V2_API_BASE_URL?.trim();
   if (configured) return configured.replace(/\/$/, "");
 
-  const appUrl =
-    process.env.NEXT_PUBLIC_APP_URL?.trim() ||
-    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : `http://127.0.0.1:${process.env.PORT || "3000"}`);
-  return `${appUrl.replace(/\/$/, "")}/api/v2`;
+  const localV2Port = process.env.V2_LOCAL_PORT?.trim() || "3001";
+  return `http://127.0.0.1:${localV2Port}/api/v1`;
 }
 
 export function getV2ApiKey() {

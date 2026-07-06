@@ -90,6 +90,13 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_v3_ticket_quality_open_unique
   ON public.v3_exception_tickets (waybill_no, sku_code, batch_no)
   WHERE category = 'quality' AND status NOT IN ('completed', 'closed');
 
+CREATE UNIQUE INDEX IF NOT EXISTS idx_v3_ticket_quality_batch_open_unique
+  ON public.v3_exception_tickets (sku_code, batch_no)
+  WHERE category = 'quality'
+    AND status NOT IN ('completed', 'closed')
+    AND sku_code IS NOT NULL
+    AND batch_no IS NOT NULL;
+
 CREATE TABLE IF NOT EXISTS public.v3_approval_records (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   ticket_id UUID NOT NULL REFERENCES public.v3_exception_tickets(id) ON DELETE CASCADE,

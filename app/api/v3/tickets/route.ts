@@ -9,6 +9,7 @@ export async function GET(request: Request) {
     const result = await listTickets({
       status: searchParams.get("status") || "",
       category: searchParams.get("category") || "",
+      exceptionType: searchParams.get("exceptionType") || "",
       waybillNo: searchParams.get("waybillNo") || "",
       assigneeId: searchParams.get("assigneeId") || "",
       q: searchParams.get("q") || "",

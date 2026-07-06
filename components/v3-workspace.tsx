@@ -24,6 +24,7 @@ import {
 import {
   EXCEPTION_LABELS,
   LOGISTICS_EXCEPTION_OPTIONS,
+  QUALITY_EXCEPTION_OPTIONS,
   STATUS_LABELS,
   type ApprovalRule,
   type ExceptionTicket,
@@ -68,6 +69,15 @@ type SyncResponse = {
   };
 };
 
+type TicketFilterState = {
+  status: string;
+  category: string;
+  exceptionType: string;
+  assigneeId: string;
+  waybillNo: string;
+  q: string;
+};
+
 const ROLE_LABELS: Record<string, string> = {
   operator: "操作员",
   level1_approver: "一级审批",
@@ -83,6 +93,12 @@ const STATUS_OPTIONS: Array<{ value: TicketStatus | ""; label: string }> = [
   { value: "rejected", label: "已驳回待重提" },
   { value: "completed", label: "已完成" },
   { value: "closed", label: "已关闭" },
+];
+
+const EXCEPTION_OPTIONS = [
+  { value: "", label: "全部异常" },
+  ...LOGISTICS_EXCEPTION_OPTIONS,
+  ...QUALITY_EXCEPTION_OPTIONS,
 ];
 
 async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
@@ -118,7 +134,14 @@ export function V3Workspace() {
   const [users, setUsers] = useState<V3User[]>([]);
   const [currentActorId, setCurrentActorId] = useState("u-level1");
   const [tickets, setTickets] = useState<TicketListResponse>({ items: [], total: 0, page: 1, pageSize: 20 });
-  const [filters, setFilters] = useState({ status: "", category: "", waybillNo: "", q: "" });
+  const [filters, setFilters] = useState<TicketFilterState>({
+    status: "",
+    category: "",
+    exceptionType: "",
+    assigneeId: "",
+    waybillNo: "",
+    q: "",
+  });
   const [selectedTicket, setSelectedTicket] = useState<TicketDetail | null>(null);
   const [rules, setRules] = useState<RuleResponse>({ approvalRules: [], qualityRules: [] });
   const [syncLogs, setSyncLogs] = useState<SyncResponse>({ logs: [], summary: { total: 0, success: 0, successRate: 0, lastSyncAt: null } });
@@ -168,6 +191,8 @@ export function V3Workspace() {
       pageSize: String(tickets.pageSize),
       status: filters.status,
       category: filters.category,
+      exceptionType: filters.exceptionType,
+      assigneeId: filters.assigneeId,
       waybillNo: filters.waybillNo,
       q: filters.q,
     });
@@ -252,6 +277,7 @@ export function V3Workspace() {
             {activeView === "tickets" ? (
               <TicketPanel
                 tickets={tickets}
+                users={users}
                 filters={filters}
                 onFiltersChange={setFilters}
                 onSearch={() => void loadTickets(1)}
@@ -529,6 +555,7 @@ function ScanPanel({
 
 function TicketPanel({
   tickets,
+  users,
   filters,
   onFiltersChange,
   onSearch,
@@ -543,8 +570,9 @@ function TicketPanel({
   onResubmit,
 }: {
   tickets: TicketListResponse;
-  filters: { status: string; category: string; waybillNo: string; q: string };
-  onFiltersChange: (next: { status: string; category: string; waybillNo: string; q: string }) => void;
+  users: V3User[];
+  filters: TicketFilterState;
+  onFiltersChange: (next: TicketFilterState) => void;
   onSearch: () => void;
   onPage: (page: number) => Promise<void>;
   selectedTicket: TicketDetail | null;
@@ -566,7 +594,7 @@ function TicketPanel({
               <p className="text-xs font-semibold uppercase text-[var(--muted)]">Ticket Queue</p>
               <h2 className="mt-1 text-lg font-semibold">异常工单列表</h2>
             </div>
-            <div className="grid flex-1 gap-2 md:grid-cols-5">
+            <div className="grid flex-1 gap-2 md:grid-cols-7">
               <Input label="关键字" value={filters.q} onChange={(value) => onFiltersChange({ ...filters, q: value })} />
               <Input label="运单号" value={filters.waybillNo} onChange={(value) => onFiltersChange({ ...filters, waybillNo: value })} />
               <Select label="状态" value={filters.status} onChange={(value) => onFiltersChange({ ...filters, status: value })} options={STATUS_OPTIONS} />
@@ -578,6 +606,21 @@ function TicketPanel({
                   { value: "", label: "全部类型" },
                   { value: "logistics", label: "物流异常" },
                   { value: "quality", label: "品控异常" },
+                ]}
+              />
+              <Select
+                label="异常"
+                value={filters.exceptionType}
+                onChange={(value) => onFiltersChange({ ...filters, exceptionType: value })}
+                options={EXCEPTION_OPTIONS}
+              />
+              <Select
+                label="审批人"
+                value={filters.assigneeId}
+                onChange={(value) => onFiltersChange({ ...filters, assigneeId: value })}
+                options={[
+                  { value: "", label: "全部审批人" },
+                  ...users.map((user) => ({ value: user.id, label: user.name })),
                 ]}
               />
               <div className="flex items-end">
@@ -698,6 +741,9 @@ function TicketDetailPanel({
     );
   }
   const sourceText = ticket.waybill?.source === "local_cache" ? `本地缓存，同步于 ${formatTime(ticket.waybill.syncedAt)}` : `实时获取自 V2，同步于 ${formatTime(ticket.waybill?.syncedAt)}`;
+  const canApprove = ticket.status === "level1_review" || ticket.status === "level2_review";
+  const canQuickRelease = ticket.category === "quality" && ticket.status !== "completed" && ticket.status !== "closed";
+  const canResubmit = ticket.status === "rejected";
   return (
     <Panel>
       <div className="flex items-start justify-between gap-3">
@@ -719,16 +765,40 @@ function TicketDetailPanel({
       <div className="mt-4 grid gap-2">
         <textarea value={comment} onChange={(event) => setComment(event.target.value)} className="h-20 resize-none rounded border border-[var(--line-strong)] px-3 py-2 text-sm outline-none" placeholder="审批意见 / 复核原因 / 重提说明" />
         <div className="grid grid-cols-2 gap-2">
-          <PrimaryButton disabled={!comment || busy.startsWith("approve")} onClick={() => onApprove(ticket, "approve", comment)} icon={<CheckCircle2 className="h-4 w-4" />}>
+          <PrimaryButton
+            disabled={!comment || !canApprove || busy.startsWith("approve")}
+            onClick={() => {
+              if (window.confirm("确认通过该工单？")) void onApprove(ticket, "approve", comment);
+            }}
+            icon={<CheckCircle2 className="h-4 w-4" />}
+          >
             通过
           </PrimaryButton>
-          <DangerButton disabled={!comment || busy.startsWith("approve")} onClick={() => onApprove(ticket, "reject", comment)} icon={<XCircle className="h-4 w-4" />}>
+          <DangerButton
+            disabled={!comment || !canApprove || busy.startsWith("approve")}
+            onClick={() => {
+              if (window.confirm("确认驳回该工单？")) void onApprove(ticket, "reject", comment);
+            }}
+            icon={<XCircle className="h-4 w-4" />}
+          >
             驳回
           </DangerButton>
-          <ActionButton disabled={!comment || busy === "quickRelease" || ticket.category !== "quality"} onClick={() => onQuickRelease(ticket, comment)} icon={<Unlock className="h-4 w-4" />}>
+          <ActionButton
+            disabled={!comment || busy === "quickRelease" || !canQuickRelease}
+            onClick={() => {
+              if (window.confirm("确认执行品控误判快速放行？该操作会解锁批次并关闭工单。")) void onQuickRelease(ticket, comment);
+            }}
+            icon={<Unlock className="h-4 w-4" />}
+          >
             快速放行
           </ActionButton>
-          <ActionButton disabled={!comment || busy === "resubmit" || ticket.status !== "rejected"} onClick={() => onResubmit(ticket, comment)} icon={<ArrowUpRight className="h-4 w-4" />}>
+          <ActionButton
+            disabled={!comment || busy === "resubmit" || !canResubmit}
+            onClick={() => {
+              if (window.confirm("确认重新提交该工单？")) void onResubmit(ticket, comment);
+            }}
+            icon={<ArrowUpRight className="h-4 w-4" />}
+          >
             重提
           </ActionButton>
         </div>

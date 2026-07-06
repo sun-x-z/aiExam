@@ -1,111 +1,255 @@
-CREATE EXTENSION IF NOT EXISTS pgcrypto;
+﻿CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
-CREATE TABLE IF NOT EXISTS public.template_rules (
-  id BIGSERIAL PRIMARY KEY,
-  fingerprint TEXT NOT NULL UNIQUE,
-  sheet_name TEXT NOT NULL,
-  header_row_index INTEGER NOT NULL,
-  column_mapping JSONB NOT NULL,
-  header_names JSONB NOT NULL,
-  confidence INTEGER NOT NULL DEFAULT 0,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE TABLE IF NOT EXISTS public.parse_rules (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+CREATE TABLE IF NOT EXISTS public.v3_users (
+  id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
-  description TEXT,
-  file_kind TEXT NOT NULL,
-  rule JSONB NOT NULL,
-  ai_generated BOOLEAN NOT NULL DEFAULT FALSE,
-  confidence INTEGER NOT NULL DEFAULT 0,
+  role TEXT NOT NULL,
+  tenant_id TEXT NOT NULL DEFAULT 'default',
+  warehouse_id TEXT NOT NULL DEFAULT 'WH-SH-01',
+  enabled BOOLEAN NOT NULL DEFAULT TRUE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_parse_rules_file_kind
-  ON public.parse_rules (file_kind);
-
-CREATE TABLE IF NOT EXISTS public.import_batches (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  file_name TEXT NOT NULL,
-  sheet_name TEXT NOT NULL,
-  template_fingerprint TEXT NOT NULL,
-  total_count INTEGER NOT NULL DEFAULT 0,
-  success_count INTEGER NOT NULL DEFAULT 0,
-  failure_count INTEGER NOT NULL DEFAULT 0,
-  status TEXT NOT NULL DEFAULT 'draft',
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE TABLE IF NOT EXISTS public.shipments (
-  id BIGSERIAL PRIMARY KEY,
-  batch_id UUID REFERENCES public.import_batches(id) ON DELETE SET NULL,
+CREATE TABLE IF NOT EXISTS public.v3_waybill_snapshots (
+  waybill_no TEXT PRIMARY KEY,
   external_code TEXT,
   store_name TEXT,
+  sender_name TEXT,
+  sender_phone TEXT,
+  sender_address TEXT,
   recipient_name TEXT,
   recipient_phone TEXT,
   recipient_address TEXT,
-  sku_code TEXT NOT NULL,
-  sku_name TEXT NOT NULL,
-  sku_quantity NUMERIC(12, 3) NOT NULL,
-  sku_spec TEXT,
-  note TEXT,
-  source_row_number INTEGER NOT NULL,
-  source_sheet_name TEXT,
-  sender_name TEXT NOT NULL DEFAULT '',
-  sender_phone TEXT NOT NULL DEFAULT '',
-  sender_address TEXT NOT NULL DEFAULT '',
-  weight_kg NUMERIC(12, 3) NOT NULL DEFAULT 1,
-  package_count INTEGER NOT NULL DEFAULT 1,
-  temperature_zone TEXT NOT NULL DEFAULT '常温',
+  amount NUMERIC(12, 2) NOT NULL DEFAULT 0,
+  status TEXT NOT NULL DEFAULT 'unknown',
+  tenant_id TEXT NOT NULL DEFAULT 'default',
+  warehouse_id TEXT NOT NULL DEFAULT 'WH-SH-01',
+  skus JSONB NOT NULL DEFAULT '[]'::jsonb,
+  source_updated_at TIMESTAMPTZ,
+  synced_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  source TEXT NOT NULL DEFAULT 'v2_realtime',
+  etag TEXT,
+  raw_payload JSONB NOT NULL DEFAULT '{}'::jsonb
+);
+
+CREATE TABLE IF NOT EXISTS public.v3_sync_logs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  request_id TEXT NOT NULL,
+  endpoint TEXT NOT NULL,
+  request_summary JSONB NOT NULL DEFAULT '{}'::jsonb,
+  response_status INTEGER,
+  success BOOLEAN NOT NULL DEFAULT FALSE,
+  duration_ms INTEGER NOT NULL DEFAULT 0,
+  error_message TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-ALTER TABLE public.shipments ADD COLUMN IF NOT EXISTS store_name TEXT;
-ALTER TABLE public.shipments ADD COLUMN IF NOT EXISTS sku_code TEXT;
-ALTER TABLE public.shipments ADD COLUMN IF NOT EXISTS sku_name TEXT;
-ALTER TABLE public.shipments ADD COLUMN IF NOT EXISTS sku_quantity NUMERIC(12, 3);
-ALTER TABLE public.shipments ADD COLUMN IF NOT EXISTS sku_spec TEXT;
-ALTER TABLE public.shipments ADD COLUMN IF NOT EXISTS source_sheet_name TEXT;
-ALTER TABLE public.shipments ADD COLUMN IF NOT EXISTS sender_name TEXT NOT NULL DEFAULT '';
-ALTER TABLE public.shipments ADD COLUMN IF NOT EXISTS sender_phone TEXT NOT NULL DEFAULT '';
-ALTER TABLE public.shipments ADD COLUMN IF NOT EXISTS sender_address TEXT NOT NULL DEFAULT '';
-ALTER TABLE public.shipments ADD COLUMN IF NOT EXISTS weight_kg NUMERIC(12, 3) NOT NULL DEFAULT 1;
-ALTER TABLE public.shipments ADD COLUMN IF NOT EXISTS package_count INTEGER NOT NULL DEFAULT 1;
-ALTER TABLE public.shipments ADD COLUMN IF NOT EXISTS temperature_zone TEXT NOT NULL DEFAULT '常温';
+CREATE INDEX IF NOT EXISTS idx_v3_sync_logs_created_at
+  ON public.v3_sync_logs (created_at DESC);
 
-UPDATE public.shipments SET sku_code = COALESCE(sku_code, external_code, CONCAT('legacy-', id));
-UPDATE public.shipments SET sku_name = COALESCE(sku_name, note, '历史数据');
-UPDATE public.shipments SET sku_quantity = COALESCE(sku_quantity, package_count, 1);
+CREATE TABLE IF NOT EXISTS public.v3_exception_tickets (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  ticket_no TEXT NOT NULL UNIQUE,
+  source TEXT NOT NULL,
+  category TEXT NOT NULL,
+  exception_type TEXT NOT NULL,
+  waybill_no TEXT NOT NULL REFERENCES public.v3_waybill_snapshots(waybill_no),
+  sku_code TEXT,
+  batch_no TEXT,
+  amount NUMERIC(12, 2) NOT NULL DEFAULT 0,
+  reporter_id TEXT NOT NULL REFERENCES public.v3_users(id),
+  current_assignee_id TEXT REFERENCES public.v3_users(id),
+  status TEXT NOT NULL,
+  approval_level INTEGER NOT NULL DEFAULT 1,
+  submit_count INTEGER NOT NULL DEFAULT 0,
+  max_submit_count INTEGER NOT NULL DEFAULT 2,
+  version INTEGER NOT NULL DEFAULT 1,
+  description TEXT NOT NULL DEFAULT '',
+  execution_action TEXT,
+  next_deadline_at TIMESTAMPTZ,
+  hold_deadline_at TIMESTAMPTZ,
+  ai_suggestion JSONB,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  completed_at TIMESTAMPTZ
+);
 
-ALTER TABLE public.shipments ALTER COLUMN recipient_name DROP NOT NULL;
-ALTER TABLE public.shipments ALTER COLUMN recipient_phone DROP NOT NULL;
-ALTER TABLE public.shipments ALTER COLUMN recipient_address DROP NOT NULL;
-ALTER TABLE public.shipments ALTER COLUMN sku_code SET DEFAULT '';
-ALTER TABLE public.shipments ALTER COLUMN sku_name SET DEFAULT '';
-ALTER TABLE public.shipments ALTER COLUMN sku_quantity SET DEFAULT 0;
+CREATE INDEX IF NOT EXISTS idx_v3_tickets_status
+  ON public.v3_exception_tickets (status, updated_at DESC);
 
-DROP INDEX IF EXISTS idx_shipments_external_code_unique;
+CREATE INDEX IF NOT EXISTS idx_v3_tickets_waybill
+  ON public.v3_exception_tickets (waybill_no);
 
-CREATE UNIQUE INDEX IF NOT EXISTS idx_shipments_external_code_sku_unique
-  ON public.shipments (external_code, sku_code)
-  WHERE external_code IS NOT NULL AND external_code <> '' AND sku_code IS NOT NULL AND sku_code <> '';
+CREATE UNIQUE INDEX IF NOT EXISTS idx_v3_ticket_manual_open_unique
+  ON public.v3_exception_tickets (waybill_no, exception_type)
+  WHERE source = 'manual' AND status NOT IN ('completed', 'closed');
 
-CREATE INDEX IF NOT EXISTS idx_shipments_recipient_name
-  ON public.shipments (recipient_name);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_v3_ticket_quality_open_unique
+  ON public.v3_exception_tickets (waybill_no, sku_code, batch_no)
+  WHERE category = 'quality' AND status NOT IN ('completed', 'closed');
 
-CREATE INDEX IF NOT EXISTS idx_shipments_store_name
-  ON public.shipments (store_name);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_v3_ticket_quality_batch_open_unique
+  ON public.v3_exception_tickets (sku_code, batch_no)
+  WHERE category = 'quality'
+    AND status NOT IN ('completed', 'closed')
+    AND sku_code IS NOT NULL
+    AND batch_no IS NOT NULL;
 
-CREATE INDEX IF NOT EXISTS idx_shipments_created_at
-  ON public.shipments (created_at DESC);
+CREATE TABLE IF NOT EXISTS public.v3_approval_records (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  ticket_id UUID NOT NULL REFERENCES public.v3_exception_tickets(id) ON DELETE CASCADE,
+  actor_id TEXT NOT NULL REFERENCES public.v3_users(id),
+  action TEXT NOT NULL,
+  result TEXT NOT NULL,
+  level INTEGER NOT NULL DEFAULT 1,
+  comment TEXT NOT NULL DEFAULT '',
+  from_status TEXT NOT NULL,
+  to_status TEXT NOT NULL,
+  idempotency_key TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
 
--- V3 运单全生命周期管理系统的新表由服务端 bootstrap 自动执行。
--- 具体定义见 ../lib/server/v3-schema.ts，包含：
--- v3_users, v3_waybill_snapshots, v3_sync_logs, v3_exception_tickets,
--- v3_approval_records, v3_compensation_records, v3_inventory_items,
--- v3_inventory_movements, v3_scan_records, v3_quality_rules,
--- v3_approval_rules, v3_system_settings。
+CREATE UNIQUE INDEX IF NOT EXISTS idx_v3_approval_idempotency
+  ON public.v3_approval_records (idempotency_key)
+  WHERE idempotency_key IS NOT NULL AND idempotency_key <> '';
+
+CREATE INDEX IF NOT EXISTS idx_v3_approval_ticket
+  ON public.v3_approval_records (ticket_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS public.v3_compensation_records (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  ticket_id UUID NOT NULL REFERENCES public.v3_exception_tickets(id) ON DELETE CASCADE,
+  approval_record_id UUID NOT NULL REFERENCES public.v3_approval_records(id),
+  amount NUMERIC(12, 2) NOT NULL DEFAULT 0,
+  direction TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending_reconciliation',
+  counterparty TEXT NOT NULL DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_v3_compensation_approval_direction
+  ON public.v3_compensation_records (approval_record_id, direction);
+
+CREATE TABLE IF NOT EXISTS public.v3_inventory_items (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  sku_code TEXT NOT NULL,
+  batch_no TEXT NOT NULL,
+  warehouse_id TEXT NOT NULL DEFAULT 'WH-SH-01',
+  quantity NUMERIC(12, 3) NOT NULL DEFAULT 0,
+  locked_quantity NUMERIC(12, 3) NOT NULL DEFAULT 0,
+  status TEXT NOT NULL DEFAULT 'available',
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (sku_code, batch_no, warehouse_id)
+);
+
+CREATE TABLE IF NOT EXISTS public.v3_inventory_movements (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  ticket_id UUID NOT NULL REFERENCES public.v3_exception_tickets(id) ON DELETE CASCADE,
+  approval_record_id UUID NOT NULL REFERENCES public.v3_approval_records(id),
+  sku_code TEXT NOT NULL,
+  batch_no TEXT NOT NULL DEFAULT '',
+  movement_type TEXT NOT NULL,
+  quantity_delta NUMERIC(12, 3) NOT NULL DEFAULT 0,
+  reason TEXT NOT NULL DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_v3_inventory_movement_idempotency
+  ON public.v3_inventory_movements (approval_record_id, movement_type, sku_code, batch_no);
+
+CREATE TABLE IF NOT EXISTS public.v3_quality_rules (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL UNIQUE,
+  subtype TEXT NOT NULL,
+  severity TEXT NOT NULL DEFAULT 'medium',
+  auto_create_ticket BOOLEAN NOT NULL DEFAULT TRUE,
+  target_approval_level INTEGER NOT NULL DEFAULT 2,
+  condition JSONB NOT NULL DEFAULT '{}'::jsonb,
+  enabled BOOLEAN NOT NULL DEFAULT TRUE,
+  priority INTEGER NOT NULL DEFAULT 100,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS public.v3_scan_records (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  waybill_no TEXT NOT NULL,
+  sku_code TEXT NOT NULL,
+  batch_no TEXT NOT NULL DEFAULT '',
+  operator_id TEXT NOT NULL REFERENCES public.v3_users(id),
+  device_code TEXT NOT NULL DEFAULT '',
+  judgement TEXT NOT NULL,
+  exception_description TEXT NOT NULL DEFAULT '',
+  matched_rule_id UUID REFERENCES public.v3_quality_rules(id),
+  rule_snapshot JSONB NOT NULL DEFAULT '{}'::jsonb,
+  batch_lock_status TEXT NOT NULL DEFAULT 'outbound_ready',
+  ticket_id UUID REFERENCES public.v3_exception_tickets(id),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_v3_scan_ticket
+  ON public.v3_scan_records (ticket_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_v3_scan_waybill_sku
+  ON public.v3_scan_records (waybill_no, sku_code, batch_no);
+
+CREATE TABLE IF NOT EXISTS public.v3_approval_rules (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL UNIQUE,
+  category TEXT NOT NULL,
+  min_amount NUMERIC(12, 2) NOT NULL DEFAULT 0,
+  max_amount NUMERIC(12, 2),
+  target_level INTEGER NOT NULL DEFAULT 1,
+  level1_timeout_hours INTEGER NOT NULL DEFAULT 24,
+  level2_timeout_hours INTEGER NOT NULL DEFAULT 48,
+  enabled BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS public.v3_system_settings (
+  key TEXT PRIMARY KEY,
+  value JSONB NOT NULL DEFAULT '{}'::jsonb,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+INSERT INTO public.v3_users (id, name, role, tenant_id, warehouse_id, enabled)
+VALUES
+  ('u-operator', '仓库操作员', 'operator', 'default', 'WH-SH-01', TRUE),
+  ('u-level1', '一级审批员', 'level1_approver', 'default', 'WH-SH-01', TRUE),
+  ('u-level2', '二级审批员', 'level2_approver', 'default', 'WH-SH-01', TRUE),
+  ('u-qc-supervisor', '品控主管', 'quality_supervisor', 'default', 'WH-SH-01', TRUE),
+  ('u-admin', '系统管理员', 'admin', 'default', 'WH-SH-01', TRUE),
+  ('u-disabled-l1', '离职一级审批员', 'level1_approver', 'default', 'WH-SH-01', FALSE)
+ON CONFLICT (id) DO UPDATE
+SET name = EXCLUDED.name,
+    role = EXCLUDED.role,
+    tenant_id = EXCLUDED.tenant_id,
+    warehouse_id = EXCLUDED.warehouse_id,
+    enabled = EXCLUDED.enabled,
+    updated_at = NOW();
+
+INSERT INTO public.v3_approval_rules (name, category, min_amount, max_amount, target_level, level1_timeout_hours, level2_timeout_hours, enabled)
+VALUES
+  ('物流异常-低金额一级审批', 'logistics', 0, 999.99, 1, 24, 48, TRUE),
+  ('物流异常-高金额二级审批', 'logistics', 1000, NULL, 2, 24, 48, TRUE),
+  ('品控异常-默认二级审批', 'quality', 0, NULL, 2, 24, 48, TRUE)
+ON CONFLICT (name) DO NOTHING;
+
+INSERT INTO public.v3_quality_rules (name, subtype, severity, auto_create_ticket, target_approval_level, condition, enabled, priority)
+VALUES
+  ('数量差异超过 3%', 'quantity_mismatch', 'high', TRUE, 2, '{"metric":"quantity_delta_percent","operator":">=","value":3}'::jsonb, TRUE, 10),
+  ('外观破损等级达到 2 级', 'appearance_damage', 'medium', TRUE, 2, '{"metric":"damage_level","operator":">=","value":2}'::jsonb, TRUE, 20),
+  ('规格偏差超过 5mm', 'spec_mismatch', 'medium', TRUE, 2, '{"metric":"spec_deviation_mm","operator":">=","value":5}'::jsonb, TRUE, 30),
+  ('标签识别不一致', 'label_error', 'medium', TRUE, 2, '{"metric":"label_matched","operator":"=","value":false}'::jsonb, TRUE, 40),
+  ('批次库龄超过 30 天', 'batch_abnormal', 'high', TRUE, 2, '{"metric":"batch_age_days","operator":">=","value":30}'::jsonb, TRUE, 50)
+ON CONFLICT (name) DO NOTHING;
+
+INSERT INTO public.v3_system_settings (key, value)
+VALUES
+  ('max_resubmit_count', '{"value":2}'::jsonb),
+  ('qc_hold_timeout_hours', '{"value":2}'::jsonb),
+  ('v2_sync_strategy', '{"realtime_on_report":true,"incremental_minutes":15,"retry_count":1,"timeout_ms":3500}'::jsonb)
+ON CONFLICT (key) DO NOTHING;
+

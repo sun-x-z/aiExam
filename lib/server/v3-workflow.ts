@@ -463,6 +463,7 @@ export async function listUsers() {
 export async function listTickets(params: {
   status?: string;
   category?: string;
+  exceptionType?: string;
   waybillNo?: string;
   assigneeId?: string;
   q?: string;
@@ -478,6 +479,10 @@ export async function listTickets(params: {
   if (params.category) {
     values.push(params.category);
     where.push(`t.category = $${values.length}`);
+  }
+  if (params.exceptionType) {
+    values.push(params.exceptionType);
+    where.push(`t.exception_type = $${values.length}`);
   }
   if (params.waybillNo) {
     values.push(`%${params.waybillNo}%`);
@@ -683,6 +688,20 @@ export async function createManualTicket(input: {
   const assigneeId = await getAssigneeForLevel(1);
   const deadline = addHours(rule?.level1TimeoutHours ?? 24);
 
+  const existing = await query<{ ticket_no: string; status: TicketStatus }>(
+    `SELECT ticket_no, status
+     FROM public.v3_exception_tickets
+     WHERE source = 'manual'
+       AND waybill_no = $1
+       AND exception_type = $2
+       AND status NOT IN ('completed', 'closed')
+     LIMIT 1`,
+    [snapshot.waybillNo, input.exceptionType]
+  );
+  if (existing.rows[0]) {
+    throw new WorkflowError(`同一运单已存在同类型未关闭工单：${existing.rows[0].ticket_no}（${existing.rows[0].status}）`, 409);
+  }
+
   const result = await query<TicketRow>(
     `INSERT INTO public.v3_exception_tickets (
       ticket_no, source, category, exception_type, waybill_no, amount, reporter_id,
@@ -858,41 +877,31 @@ export async function scanWaybill(input: {
   const matchedRule = findMatchedQualityRule(rules, metrics);
   const batchNo = input.batchNo.trim() || `${snapshot.waybillNo}-${input.skuCode.trim()}`;
 
-  if (!matchedRule) {
-    const result = await query<{ id: string }>(
-      `INSERT INTO public.v3_scan_records (
-        waybill_no, sku_code, batch_no, operator_id, device_code, judgement,
-        exception_description, batch_lock_status
-      ) VALUES ($1,$2,$3,$4,$5,'pass',$6,'outbound_ready')
-      RETURNING id`,
-      [snapshot.waybillNo, input.skuCode.trim(), batchNo, actor.id, input.deviceCode || "", input.description || "品控通过"]
-    );
-    return { judgement: "pass" as ScanJudgement, scanId: result.rows[0].id, message: "品控通过，批次可出库。" };
-  }
-
   const maxSubmitCount = await getSettingNumber("max_resubmit_count", 2);
   const holdTimeoutHours = await getSettingNumber("qc_hold_timeout_hours", 2);
 
   return withClient(async (client) => {
-    const openTicket = await client.query<{ id: string; ticket_no: string; status: TicketStatus }>(
-      `SELECT id, ticket_no, status
+    const openTicket = await client.query<{ id: string; ticket_no: string; status: TicketStatus; waybill_no: string }>(
+      `SELECT id, ticket_no, status, waybill_no
        FROM public.v3_exception_tickets
        WHERE category = 'quality'
-         AND waybill_no = $1
-         AND sku_code = $2
-         AND batch_no = $3
+         AND sku_code = $1
+         AND batch_no = $2
          AND status NOT IN ('completed', 'closed')
        LIMIT 1
        FOR UPDATE`,
-      [snapshot.waybillNo, input.skuCode.trim(), batchNo]
+      [input.skuCode.trim(), batchNo]
     );
 
     if (openTicket.rows[0]) {
+      if (openTicket.rows[0].waybill_no !== snapshot.waybillNo) {
+        throw new WorkflowError(`该 SKU 批次已被工单 ${openTicket.rows[0].ticket_no} 锁定，禁止被其他运单引用`, 409);
+      }
       const scan = await client.query<{ id: string }>(
         `INSERT INTO public.v3_scan_records (
           waybill_no, sku_code, batch_no, operator_id, device_code, judgement,
           exception_description, matched_rule_id, rule_snapshot, batch_lock_status, ticket_id
-        ) VALUES ($1,$2,$3,$4,$5,'abnormal',$6,$7,$8::jsonb,'qc_hold',$9)
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,'qc_hold',$10)
         RETURNING id`,
         [
           snapshot.waybillNo,
@@ -900,14 +909,15 @@ export async function scanWaybill(input: {
           batchNo,
           actor.id,
           input.deviceCode || "",
-          input.description || matchedRule.name,
-          matchedRule.id,
-          JSON.stringify({ rule: matchedRule, metrics }),
+          matchedRule ? "abnormal" : "pass",
+          input.description || matchedRule?.name || "批次复扫",
+          matchedRule?.id ?? null,
+          JSON.stringify({ rule: matchedRule ?? null, metrics }),
           openTicket.rows[0].id,
         ]
       );
       return {
-        judgement: "abnormal" as ScanJudgement,
+        judgement: (matchedRule ? "abnormal" : "pass") as ScanJudgement,
         scanId: scan.rows[0].id,
         ticketId: openTicket.rows[0].id,
         createdTicket: false,
@@ -915,7 +925,25 @@ export async function scanWaybill(input: {
       };
     }
 
+    if (!matchedRule) {
+      const result = await client.query<{ id: string }>(
+        `INSERT INTO public.v3_scan_records (
+          waybill_no, sku_code, batch_no, operator_id, device_code, judgement,
+          exception_description, batch_lock_status
+        ) VALUES ($1,$2,$3,$4,$5,'pass',$6,'outbound_ready')
+        RETURNING id`,
+        [snapshot.waybillNo, input.skuCode.trim(), batchNo, actor.id, input.deviceCode || "", input.description || "品控通过"]
+      );
+      return { judgement: "pass" as ScanJudgement, scanId: result.rows[0].id, message: "品控通过，批次可出库。" };
+    }
+
     const assigneeId = await getAssigneeForLevel(matchedRule.targetApprovalLevel, client);
+    const approvalRule = await getApprovalRule("quality", snapshot.amount, client);
+    const nextDeadline = addHours(
+      matchedRule.targetApprovalLevel >= 2
+        ? approvalRule?.level2TimeoutHours ?? 48
+        : approvalRule?.level1TimeoutHours ?? 24
+    );
     await client.query(
       `INSERT INTO public.v3_inventory_items (sku_code, batch_no, warehouse_id, quantity, locked_quantity, status)
        VALUES ($1,$2,$3,0,1,'qc_hold')
@@ -946,7 +974,7 @@ export async function scanWaybill(input: {
         matchedRule.targetApprovalLevel,
         maxSubmitCount,
         input.description || matchedRule.name,
-        addHours(matchedRule.targetApprovalLevel >= 2 ? 48 : 24),
+        nextDeadline,
         addHours(holdTimeoutHours),
       ]
     );
@@ -1154,6 +1182,7 @@ export async function resubmitTicket(input: { ticketId: string; actorId: string;
     if (ticket.reporter_id !== actor.id && actor.role !== "admin") throw new WorkflowError("只有上报人可重新提交", 403);
     if (ticket.submit_count >= ticket.max_submit_count) throw new WorkflowError("已超过重新提交次数上限", 409);
     const level = ticket.category === "quality" ? 2 : 1;
+    const rule = await getApprovalRule(ticket.category, Number(ticket.amount), client);
     const assigneeId = await getAssigneeForLevel(level, client);
     const toStatus: TicketStatus = level >= 2 ? "level2_review" : "level1_review";
     await insertApprovalRecord(client, {
@@ -1177,7 +1206,14 @@ export async function resubmitTicket(input: { ticketId: string; actorId: string;
            updated_at = NOW(),
            version = version + 1
        WHERE id = $1`,
-      [ticket.id, toStatus, level, assigneeId, input.description, addHours(level >= 2 ? 48 : 24)]
+      [
+        ticket.id,
+        toStatus,
+        level,
+        assigneeId,
+        input.description,
+        addHours(level >= 2 ? rule?.level2TimeoutHours ?? 48 : rule?.level1TimeoutHours ?? 24),
+      ]
     );
     return { ticketId: ticket.id };
   });

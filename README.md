@@ -22,6 +22,16 @@ npm run dev
 
 打开 `http://127.0.0.1:3000`。
 
+本地联调需要同时启动拆分出的 V2 项目：
+
+```powershell
+cd E:\work\aiExam-v2
+npm install
+npm run dev
+```
+
+V2 默认运行在 `http://127.0.0.1:3001`，对 V3 暴露 `http://127.0.0.1:3001/api/v1`。
+
 ## 环境变量
 
 支持以下数据库连接变量之一：
@@ -34,13 +44,13 @@ npm run dev
 
 V2 接口配置：
 
-- `NEXT_PUBLIC_APP_URL=http://127.0.0.1:3000`
-- `V2_API_BASE_URL=`：生产环境填写真实 V2 API 地址。
+- `V2_API_BASE_URL=http://127.0.0.1:3001/api/v1`：生产环境填写真实 V2 API 地址。
+- `V2_LOCAL_PORT=3001`：未配置 `V2_API_BASE_URL` 时使用的本地 V2 端口。
 - `V2_API_KEY=local-dev-v2-key`
 - `V2_API_TIMEOUT_MS=3500`
 - `V2_API_RETRY_COUNT=1`
 
-未配置 `V2_API_BASE_URL` 时，本地会使用内置 `/api/v2` HTTP 适配器。
+V3 不再内置 `/api/v2` 适配器；运单导入、解析规则和 V2 HTTP 服务已拆分到 `E:\work\aiExam-v2`。
 
 ## 文档
 
@@ -65,7 +75,5 @@ V2 接口配置：
 
 服务端首次访问会自动执行建表逻辑：
 
-- 旧 V2 导入表继续保留。
 - V3 新表定义位于 [lib/server/v3-schema.ts](./lib/server/v3-schema.ts)。
-- 静态 SQL 初始脚本仍在 [database/schema.sql](./database/schema.sql)，V3 以代码内 schema 为准自动 bootstrap。
-
+- 静态 SQL 初始脚本在 [database/schema.sql](./database/schema.sql)，V3 以代码内 schema 为准自动 bootstrap。

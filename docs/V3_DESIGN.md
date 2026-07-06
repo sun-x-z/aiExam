@@ -46,7 +46,7 @@ V3 新增表在 [lib/server/v3-schema.ts](../lib/server/v3-schema.ts) 中自动 
 - `v3_approval_rules`：分级审批阈值配置。
 - `v3_users`：演示角色与权限边界。
 
-旧 V2 导入相关表保留，内置 `/api/v2/*` 仅作为本地 HTTP 适配器使用。
+旧 V2 导入相关表和 `/api/v2/*` 适配器已拆分到独立 V2 项目 `E:\work\aiExam-v2`；V3 仅通过 `V2_API_BASE_URL` 调用 HTTP 接口。
 
 ## 4. 技术实现点
 
@@ -80,4 +80,3 @@ V3 新增表在 [lib/server/v3-schema.ts](../lib/server/v3-schema.ts) 中自动 
 - `GET /api/v3/sync-logs`
 - `POST /api/v3/maintenance`
 - `POST /api/v3/seed`
-
