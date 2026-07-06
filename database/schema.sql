@@ -102,3 +102,10 @@ CREATE INDEX IF NOT EXISTS idx_shipments_store_name
 
 CREATE INDEX IF NOT EXISTS idx_shipments_created_at
   ON public.shipments (created_at DESC);
+
+-- V3 运单全生命周期管理系统的新表由服务端 bootstrap 自动执行。
+-- 具体定义见 ../lib/server/v3-schema.ts，包含：
+-- v3_users, v3_waybill_snapshots, v3_sync_logs, v3_exception_tickets,
+-- v3_approval_records, v3_compensation_records, v3_inventory_items,
+-- v3_inventory_movements, v3_scan_records, v3_quality_rules,
+-- v3_approval_rules, v3_system_settings。

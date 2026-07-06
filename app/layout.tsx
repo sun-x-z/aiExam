@@ -3,8 +3,8 @@ import type { ReactNode } from "react";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "AI Exam 2.0 - 智能多格式批量下单",
-  description: "规则引擎 + AI 辅助生成的 Excel / Word / PDF 多格式出库单导入系统。",
+  title: "AI Exam V3 - 运单全流程管理",
+  description: "扫描品控、异常上报、分级审批、赔付库存联动与 V2 HTTP 接口同步。",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {

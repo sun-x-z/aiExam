@@ -6,3 +6,4 @@ tmp
 Thumbs.db
 server.err.log
 server.out.log
+tsconfig.tsbuildinfo

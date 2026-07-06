@@ -2,7 +2,7 @@
   "name": "ai-exam-order-import",
   "private": true,
   "version": "2.0.0",
-  "description": "Multi-template Excel import and shipment submission system for Vercel",
+  "description": "Waybill lifecycle V3 system with quality scan, exception approval, inventory and compensation linkage",
   "scripts": {
     "dev": "next dev",
     "build": "next build",

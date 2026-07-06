@@ -1,4 +1,5 @@
 import { Pool, type PoolClient, type QueryResult, type QueryResultRow } from "pg";
+import { V3_SCHEMA_SQL } from "@/lib/server/v3-schema";
 
 let pool: Pool | null = null;
 let bootstrapPromise: Promise<void> | null = null;
@@ -143,6 +144,8 @@ export async function bootstrapDatabase() {
         CREATE INDEX IF NOT EXISTS idx_shipments_created_at
           ON public.shipments (created_at DESC);
       `);
+
+      await client.query(V3_SCHEMA_SQL);
     })().catch((error) => {
       bootstrapPromise = null;
       throw error;
