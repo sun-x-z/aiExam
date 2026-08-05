@@ -23,7 +23,7 @@ X-Request-ID: <uuid>
 Accept: application/json
 ```
 
-每次调用都会写入 `v3_sync_logs`：
+V3 客户端每次调用都会写入 `v3_sync_logs`：
 
 - request id
 - endpoint

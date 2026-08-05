@@ -1,5 +1,4 @@
 import { Pool, type PoolClient, type QueryResult, type QueryResultRow } from "pg";
-import { IMPORT_SCHEMA_SQL } from "@/lib/server/import-schema";
 import { V3_SCHEMA_SQL } from "@/lib/server/v3-schema";
 
 let pool: Pool | null = null;
@@ -41,7 +40,6 @@ export async function bootstrapDatabase() {
       const client = getPool();
       await client.query("CREATE EXTENSION IF NOT EXISTS pgcrypto");
       await client.query(V3_SCHEMA_SQL);
-      await client.query(IMPORT_SCHEMA_SQL);
     })().catch((error) => {
       bootstrapPromise = null;
       throw error;
