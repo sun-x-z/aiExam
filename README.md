@@ -1,17 +1,17 @@
-# AI Exam V3 - 运单全流程管理系统
+# AI Exam V2 - 运单导入与异步处理系统
 
-基于 `Next.js App Router + TypeScript + PostgreSQL/Neon` 的 V3 运单全生命周期管理系统，覆盖扫描品控、异常上报、分级审批、执行联动、接口监控和需求假设说明。
+基于 `Next.js App Router + TypeScript + PostgreSQL/Neon` 的 V2 运单导入系统。原有 V2 规则驱动导入能力已保留，并合并了异步任务、Outbox、批量校验、批量写入、行级错误、进度追踪、监控看板和 Trace 检索。
+
+`aiExam-v2` 是需求中的 V3 参考项目；本仓库 `aiExam` 是需求中的 V2 目标项目。本次合并只迁移 V3 项目中已经提交的 V2 导入能力，不迁移 V3 审批、品控、赔付和库存领域。
 
 ## 已实现能力
 
-- V3 独立数据模型：工单、审批、赔付、库存、扫描、规则、接口日志、运单快照。
-- V2 HTTP 对接：创建工单和扫描时实时校验运单/SKU，不直接连接 V2 数据库。
-- 扫描品控：可配置规则命中、批次暂扣、重复扫描幂等、品控主管快速放行。
-- 异常上报：物流异常手工上报，阻止同运单同类型未关闭工单重复创建。
-- 分级审批：一级/二级审批、金额阈值可配置、并发版本校验、自批自审拦截。
-- 执行联动：赔付方向区分客户理赔/供应商追偿，库存变更可追溯到审批记录。
-- 维护任务：审批超时升级/驳回，禁用审批人自动转交。
-- 200+ 样本数据生成：用于验证列表筛选、分页、统计。
+- 文件上传、解析规则管理、试解析、预览编辑和历史运单查询。
+- 上传即返回 `task_id`，任务创建、处理单元和 Outbox 事件在同一数据库事务中完成。
+- Dispatcher/Worker 异步处理，按批次执行批量 SKU 校验和批量 UPSERT。
+- 行级错误、批次性能日志、任务进度、Trace 时间线和监控聚合。
+- SKU 主数据压测脚本、10,000 行 Excel 生成脚本和导入压测脚本。
+- `/api/v1`、`/api/v2` 运单查询接口，供原 V3 项目通过 HTTP 合同联调。
 
 ## 本地启动
 
@@ -20,17 +20,7 @@ npm install
 npm run dev
 ```
 
-打开 `http://127.0.0.1:3000`。
-
-本地联调需要同时启动拆分出的 V2 项目：
-
-```powershell
-cd E:\work\aiExam-v2
-npm install
-npm run dev
-```
-
-V2 默认运行在 `http://127.0.0.1:3001`，对 V3 暴露 `http://127.0.0.1:3001/api/v1`。
+打开 `http://127.0.0.1:3000` 进入异步导入工作台。
 
 ## 环境变量
 
@@ -42,38 +32,50 @@ V2 默认运行在 `http://127.0.0.1:3001`，对 V3 暴露 `http://127.0.0.1:300
 - `NEON_DATABASE_URL`
 - `NEON_POSTGRES_URL`
 
-V2 接口配置：
+V2 对外 HTTP 合同配置：
 
-- `V2_API_BASE_URL=http://127.0.0.1:3001/api/v1`：生产环境填写真实 V2 API 地址。
-- `V2_LOCAL_PORT=3001`：未配置 `V2_API_BASE_URL` 时使用的本地 V2 端口。
+- `V2_API_BASE_URL`：外部调用方使用的 V2 API 地址；本仓库内置 `/api/v1` 和 `/api/v2` 路由。
 - `V2_API_KEY=local-dev-v2-key`
-- `V2_API_TIMEOUT_MS=3500`
-- `V2_API_RETRY_COUNT=1`
+- `V2_API_TIMEOUT_MS=3500`、`V2_API_RETRY_COUNT=1`：仅当其他服务通过 HTTP 调用 V2 时使用。
 
-V3 不再内置 `/api/v2` 适配器；运单导入、解析规则和 V2 HTTP 服务已拆分到 `E:\work\aiExam-v2`。
+异步导入配置：
+
+- `IMPORT_BATCH_SIZE=1000`
+- `IMPORT_WORKER_BATCH_LIMIT=2`
+- `IMPORT_FORCE_SKU_DEGRADED=1`：模拟 SKU 主数据校验降级。
 
 ## 文档
 
-- [V3 设计文档](./docs/V3_DESIGN.md)
-- [需求理解与假设说明](./docs/REQUIREMENT_ASSUMPTIONS.md)
+- [V2 异步导入实现说明](./docs/V2_ASYNC_IMPORT_IMPLEMENTATION.md)
 - [V2 系统间接口文档](./docs/V2_INTERFACE_CONTRACT.md)
 
 ## 主要 API
 
-- `GET/POST /api/v3/tickets`
-- `GET /api/v3/tickets/:ticketId`
-- `POST /api/v3/tickets/:ticketId/approve`
-- `POST /api/v3/tickets/:ticketId/quick-release`
-- `POST /api/v3/tickets/:ticketId/resubmit`
-- `POST /api/v3/scans`
-- `GET/PUT /api/v3/rules`
-- `GET /api/v3/sync-logs`
-- `POST /api/v3/maintenance`
-- `POST /api/v3/seed`
+- `POST /api/import-tasks`
+- `GET /api/import-tasks/:taskId`
+- `GET /api/import-tasks/:taskId/errors`
+- `GET /api/import-tasks/:taskId/batches`
+- `POST /api/import-dispatcher/tick`
+- `POST /api/import-worker/tick`
+- `GET /api/import-monitor/summary`
+- `GET /api/traces/:traceId`
 
 ## 数据库
 
-服务端首次访问会自动执行建表逻辑：
+服务端首次访问会自动执行建表逻辑，数据库访问仍使用原有 `pg Pool`、单连接池和事务封装：
 
-- V3 新表定义位于 [lib/server/v3-schema.ts](./lib/server/v3-schema.ts)。
-- 静态 SQL 初始脚本在 [database/schema.sql](./database/schema.sql)，V3 以代码内 schema 为准自动 bootstrap。
+- 兼容表定义位于 [lib/server/v3-schema.ts](./lib/server/v3-schema.ts)。
+- V2 导入表定义位于 [lib/server/import-schema.ts](./lib/server/import-schema.ts)。
+- 手工初始化脚本分别位于 [database/schema.sql](./database/schema.sql) 和 [database/import-schema.sql](./database/import-schema.sql)。
+- V2 导入任务创建使用 `withClient`，任务、行数据、批次和 Outbox 同事务提交。
+
+## 压测与流程验证
+
+```powershell
+npm run seed:perf
+npm run loadtest:import
+```
+
+`seed:perf` 默认生成 20,000 条 `sku_master` 主数据和 `test-data/10000-orders.xlsx`；重复执行只清理 `SKU_%` 记录后重新灌入。`loadtest:import` 上传压测文件，主动触发 Dispatcher/Worker tick，轮询任务直到结束，并输出上传耗时、总耗时、成功/失败行数和 60 秒目标是否达成。
+
+Vercel 部署时，应通过 Cron 或独立 Worker 定时调用 `/api/import-worker/tick`，不能依赖用户页面长连接。

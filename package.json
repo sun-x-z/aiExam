@@ -1,13 +1,15 @@
 {
-  "name": "ai-exam-v3",
+  "name": "ai-exam-v2",
   "private": true,
-  "version": "3.0.0",
-  "description": "Waybill lifecycle V3 system with quality scan, exception approval, inventory and compensation linkage",
+  "version": "2.1.0",
+  "description": "V2 waybill import system with async batch processing and observability",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "seed:perf": "node scripts/seed-data.mjs",
+    "loadtest:import": "node scripts/loadtest-import.mjs"
   },
   "dependencies": {
     "clsx": "^2.1.1",
