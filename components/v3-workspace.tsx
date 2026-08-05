@@ -417,13 +417,6 @@ function SideNav({ activeView, onChange }: { activeView: ActiveView; onChange: (
             {item.label}
           </button>
         ))}
-        <a
-          href="/import"
-          className="flex h-12 w-full items-center gap-3 rounded-sm px-3 text-left text-[15px] font-semibold text-slate-300 hover:bg-white/10 hover:text-white"
-        >
-          <ArrowUpRight className="h-5 w-5" />
-          异步导入工作台
-        </a>
       </nav>
       <div className="absolute bottom-4 left-3 right-3 rounded-md bg-white/10 px-3 py-2 text-xs leading-5 text-slate-200">
         V3 独立库 · HTTP 对接 V2 · 审批与库存赔付事务联动
